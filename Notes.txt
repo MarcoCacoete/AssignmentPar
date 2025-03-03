@@ -1,0 +1,9 @@
+1. Define the input data (e.g., array/vector) and its size
+2. Define the output buffer (e.g., array/vector) and its size
+3. Create device buffers for input (read-only) and output (read-write)
+4. Write input data to the device input buffer
+5. Initialize the output buffer on the device (e.g., set to zeros if needed)
+6. Create the kernel from the program and set its arguments (input and output buffers)
+7. Run the kernel with appropriate global work size
+8. Read the output buffer back to the host
+9. Use the results (e.g., process or print)

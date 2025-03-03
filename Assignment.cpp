@@ -40,10 +40,10 @@ int main(int argc, char **argv) {
 		CImg<unsigned char> image_input(image_filename.c_str());
 		CImgDisplay disp_input(image_input,"input");
 
-		//a 3x3 convolution mask implementing an averaging filter
-		std::vector<float> convolution_mask = { 1.f / 9, 1.f / 9, 1.f / 9,
-												1.f / 9, 1.f / 9, 1.f / 9,
-												1.f / 9, 1.f / 9, 1.f / 9 };
+		// //a 3x3 convolution mask implementing an averaging filter
+		// std::vector<float> convolution_mask = { 1.f / 9, 1.f / 9, 1.f / 9,
+		// 										1.f / 9, 1.f / 9, 1.f / 9,
+		// 										1.f / 9, 1.f / 9, 1.f / 9 };
 
 		//Part 3 - host operations
 		//3.1 Select computing devices
@@ -83,7 +83,7 @@ int main(int argc, char **argv) {
 
 		size_t buffer_Size = bin_number * sizeof(int);
 
-		cl::Buffer dev_intensityHistogram(context, CL_MEM_READ_WRITE, buffer_Size); //should be the same as input image
+		cl::Buffer dev_intensityHistogram(context, CL_MEM_READ_WRITE, buffer_Size); 
 
 //		cl::Buffer dev_convolution_mask(context, CL_MEM_READ_ONLY, convolution_mask.size()*sizeof(float));
 
