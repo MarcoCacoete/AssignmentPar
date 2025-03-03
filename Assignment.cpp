@@ -92,32 +92,52 @@ int main(int argc, char **argv) {
 //		queue.enqueueWriteBuffer(dev_convolution_mask, CL_TRUE, 0, convolution_mask.size()*sizeof(float), &convolution_mask[0]);
 
 		//4.2 Setup and execute the kernel (i.e. device code)
-		cl::Kernel kernel = cl::Kernel(program, "avg_filterND");
-		kernel.setArg(0, dev_image_input);
-		kernel.setArg(1, dev_image_output);
-//		kernel.setArg(2, dev_convolution_mask);
+// 		cl::Kernel kernel = cl::Kernel(program, "avg_filterND");
+// 		kernel.setArg(0, dev_image_input);
+// 		kernel.setArg(1, dev_image_output);
+		// //		kernel.setArg(2, dev_convolution_mask);
+		vector<int> histogram (bin_number,0);
+
+		queue.enqueueWriteBuffer(dev_intensityHistogram, CL_TRUE, 0, buffer_Size, &histogram.data()[0]);
 
 		cl::Kernel kernel = cl::Kernel(program, "intensityHistogram");
 		kernel.setArg(0, dev_image_input);
 		kernel.setArg(1, dev_intensityHistogram);
 
+		queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(image_input.size()), cl::NullRange);
+
+
 		// queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(image_input.size()), cl::NullRange);
-		queue.enqueueNDRangeKernel(kernel, cl::NullRange, 
-			cl::NDRange(image_input.width(), image_input.height(), image_input.spectrum()), 
-			cl::NullRange);
+		// queue.enqueueNDRangeKernel(kernel, cl::NullRange, 
+		// 	cl::NDRange(image_input.width(), image_input.height(), image_input.spectrum()), 
+		// 	cl::NullRange);
 
-		vector<unsigned char> output_buffer(image_input.size());
+		// vector<unsigned char> output_buffer(image_input.size());
+	
 		//4.3 Copy the result from device to host
-		queue.enqueueReadBuffer(dev_image_output, CL_TRUE, 0, output_buffer.size(), &output_buffer.data()[0]);
+		// queue.enqueueReadBuffer(dev_image_output, CL_TRUE, 0, output_buffer.size(), &output_buffer.data()[0]);
+		queue.enqueueReadBuffer(dev_intensityHistogram, CL_TRUE, 0, buffer_Size, &histogram.data()[0]);
 
-		CImg<unsigned char> output_image(output_buffer.data(), image_input.width(), image_input.height(), image_input.depth(), image_input.spectrum());
-		CImgDisplay disp_output(output_image,"output");
+		int jobCount;
 
- 		while (!disp_input.is_closed() && !disp_output.is_closed()
-			&& !disp_input.is_keyESC() && !disp_output.is_keyESC()) {
-		    disp_input.wait(1);
-		    disp_output.wait(1);
-	    }		
+		for (int i=0; i<histogram.size();i++){
+			cout<<histogram[i]<<endl;
+			jobCount+= histogram[i];
+		}
+
+		cout<<jobCount<<endl;
+
+
+
+
+		// CImg<unsigned char> output_image(output_buffer.data(), image_input.width(), image_input.height(), image_input.depth(), image_input.spectrum());
+		// CImgDisplay disp_output(output_image,"output");
+
+ 		// while (!disp_input.is_closed() && !disp_output.is_closed()
+		// 	&& !disp_input.is_keyESC() && !disp_output.is_keyESC()) {
+		//     disp_input.wait(1);
+		//     disp_output.wait(1);
+	    // }		
 
 	}
 	catch (const cl::Error& err) {

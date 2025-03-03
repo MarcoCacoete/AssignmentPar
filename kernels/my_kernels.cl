@@ -1,8 +1,8 @@
-// Histogram 
+// Histogram using image unsigned character array as input and an int array as output which will hold the intensity values and bin size I picked in host code.
 kernel void intensityHistogram(global const uchar* inputImage, global int* histogramOutput){
-	int id = get_global_id(0);
-	int intensityValue = inputImage[id];
-	atomic_inc(&histogramOutput[intensityValue]);
+	int id = get_global_id(0); // Gets work item id
+	int intensityValue = inputImage[id];  // This assigns the intensity value of the pixel that matches the id to a variable.
+	atomic_inc(&histogramOutput[intensityValue]);  // Increments the corresponding bin each time by using the intensity value as the index number.
 }
 
 //a simple OpenCL kernel which copies all pixels from A to B
