@@ -5,6 +5,9 @@ kernel void intensityHistogram(global const uchar* inputImage, global int* histo
 	atomic_inc(&histogramOutput[intensityValue]);  // Increments the corresponding bin each time by using the intensity value as the index number.
 }
 
+
+// cumulative histogram based on algorithm found on https://github.com/anzemur/gpu-hist-equalization/blob/main/src/img_hist_eq_gpu.cl by anzemur based on Blelloch Scan
+
 //a simple OpenCL kernel which copies all pixels from A to B
 kernel void identity(global const uchar* A, global uchar* B) {
 	int id = get_global_id(0);
