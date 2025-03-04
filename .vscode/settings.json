@@ -5,5 +5,6 @@
         "string_view": "cpp",
         "initializer_list": "cpp",
         "span": "cpp"
-    }
+    },
+    "C_Cpp.default.compilerPath": "/usr/bin/gcc-13"
 }

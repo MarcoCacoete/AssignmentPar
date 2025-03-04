@@ -8,6 +8,7 @@
 // This code is adapted from the code provided for the Tutorial 2 task in the workshops.
 
 using namespace cimg_library;
+using namespace std;
 
 void print_help() {
 	std::cerr << "Application usage:" << std::endl;
@@ -53,7 +54,7 @@ int main(int argc, char **argv) {
 		std::cout << "Runing on " << GetPlatformName(platform_id) << ", " << GetDeviceName(platform_id, device_id) << std::endl;
 
 		//create a queue to which we will push commands for the device
-		cl::CommandQueue queue(context);
+		cl::CommandQueue queue(context, CL_QUEUE_PROFILING_ENABLE); // Added option for profiling.
 
 		//3.2 Load & build the device code
 		cl::Program::Sources sources;
@@ -75,6 +76,7 @@ int main(int argc, char **argv) {
 
 		//Part 4 - device operations
 
+
 		//device - buffers
 		cl::Buffer dev_image_input(context, CL_MEM_READ_ONLY, image_input.size());
 		cl::Buffer dev_image_output(context, CL_MEM_READ_WRITE, image_input.size()); //should be the same as input image
@@ -86,10 +88,21 @@ int main(int argc, char **argv) {
 		cl::Buffer dev_intensityHistogram(context, CL_MEM_READ_WRITE, buffer_Size); 
 
 //		cl::Buffer dev_convolution_mask(context, CL_MEM_READ_ONLY, convolution_mask.size()*sizeof(float));
+		
+		auto beginning = chrono::high_resolution_clock::now(); // Starts measuring whole program execution time.
 
 		//4.1 Copy images to device memory
-		queue.enqueueWriteBuffer(dev_image_input, CL_TRUE, 0, image_input.size(), &image_input.data()[0]);
+		cl::Event imageBuffer;
+		queue.enqueueWriteBuffer(dev_image_input, CL_TRUE, 0, image_input.size(), &image_input.data()[0],nullptr, &imageBuffer);
 //		queue.enqueueWriteBuffer(dev_convolution_mask, CL_TRUE, 0, convolution_mask.size()*sizeof(float), &convolution_mask[0]);
+		imageBuffer.wait();
+
+		cl_ulong ibStart = imageBuffer.getProfilingInfo<CL_PROFILING_COMMAND_START>();
+		cl_ulong ibEnd = imageBuffer.getProfilingInfo<CL_PROFILING_COMMAND_END>();
+
+		double imageBufferTime = static_cast<double>(ibEnd - ibStart) / 1e6;
+		cout<<"Image Buffer write duration:"<< imageBufferTime <<" milliseconds"<< endl;
+		
 
 		//4.2 Setup and execute the kernel (i.e. device code)
 // 		cl::Kernel kernel = cl::Kernel(program, "avg_filterND");
@@ -98,13 +111,30 @@ int main(int argc, char **argv) {
 		// //		kernel.setArg(2, dev_convolution_mask);
 		vector<int> histogram (bin_number,0);
 
-		queue.enqueueWriteBuffer(dev_intensityHistogram, CL_TRUE, 0, buffer_Size, &histogram.data()[0]);
+		cl::Event histogramBuffer;
+		queue.enqueueWriteBuffer(dev_intensityHistogram, CL_TRUE, 0, buffer_Size, &histogram.data()[0],nullptr, &histogramBuffer);
+		histogramBuffer.wait();
+
+		cl_ulong hbStart = histogramBuffer.getProfilingInfo<CL_PROFILING_COMMAND_START>();
+		cl_ulong hbEnd = histogramBuffer.getProfilingInfo<CL_PROFILING_COMMAND_END>();
+
+		double histogramBufferTime = static_cast<double>(hbEnd - hbStart) / 1e6;
+		cout<<"Histogram Buffer write duration:"<< histogramBufferTime <<" milliseconds"<< endl;
 
 		cl::Kernel kernel = cl::Kernel(program, "intensityHistogram");
 		kernel.setArg(0, dev_image_input);
 		kernel.setArg(1, dev_intensityHistogram);
 
-		queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(image_input.size()), cl::NullRange);
+		cl::Event histogramKernel;
+
+		queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(image_input.size()), cl::NullRange,nullptr, &histogramKernel);
+		histogramKernel.wait();
+
+		cl_ulong hkStart = histogramKernel.getProfilingInfo<CL_PROFILING_COMMAND_START>();
+		cl_ulong hkEnd = histogramKernel.getProfilingInfo<CL_PROFILING_COMMAND_END>();
+
+		double histogramKernelTime = static_cast<double>(hkEnd - hkStart) / 1e6;
+		cout<<"Histogram Kernel duration:"<< histogramKernelTime <<" milliseconds"<< endl;
 
 
 		// queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(image_input.size()), cl::NullRange);
@@ -116,16 +146,31 @@ int main(int argc, char **argv) {
 	
 		//4.3 Copy the result from device to host
 		// queue.enqueueReadBuffer(dev_image_output, CL_TRUE, 0, output_buffer.size(), &output_buffer.data()[0]);
-		queue.enqueueReadBuffer(dev_intensityHistogram, CL_TRUE, 0, buffer_Size, &histogram.data()[0]);
+
+		cl::Event histogramRead;
+		queue.enqueueReadBuffer(dev_intensityHistogram, CL_TRUE, 0, buffer_Size, &histogram.data()[0],nullptr, &histogramRead);
+		histogramRead.wait();
+
+		cl_ulong hrStart = histogramRead.getProfilingInfo<CL_PROFILING_COMMAND_START>();
+		cl_ulong hrEnd = histogramRead.getProfilingInfo<CL_PROFILING_COMMAND_END>();
+
+		double histogramReadTime = static_cast<double>(hrEnd - hrStart) / 1e6;
+		cout<<"Histogram Read duration:"<< histogramReadTime <<" milliseconds"<< endl;
 
 		int jobCount;
 
-		for (int i=0; i<histogram.size();i++){
-			cout<<histogram[i]<<endl;
-			jobCount+= histogram[i];
-		}
+		// for (int i=0; i<histogram.size();i++){
+		// 	cout<<histogram[i]<<endl;
+		// 	jobCount+= histogram[i];
+		// }
 
-		cout<<jobCount<<endl;
+		// cout<<jobCount<<endl;
+
+		// This finishes the time count and calculates the difference between the 2 registered timestamps so we get the total duration of the events.
+		auto ending = chrono::high_resolution_clock::now();
+		auto total = chrono::duration<double,milli>(ending-beginning).count() ;
+
+		cout<<"Total time to run program:"<< total <<" milliseconds"<< endl;
 
 
 
