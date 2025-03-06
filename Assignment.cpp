@@ -41,10 +41,6 @@ int main(int argc, char **argv) {
 		CImg<unsigned char> image_input(image_filename.c_str());
 		CImgDisplay disp_input(image_input,"input");
 
-		// //a 3x3 convolution mask implementing an averaging filter
-		// std::vector<float> convolution_mask = { 1.f / 9, 1.f / 9, 1.f / 9,
-		// 										1.f / 9, 1.f / 9, 1.f / 9,
-		// 										1.f / 9, 1.f / 9, 1.f / 9 };
 
 		//Part 3 - host operations
 		//3.1 Select computing devices
@@ -87,14 +83,13 @@ int main(int argc, char **argv) {
 
 		cl::Buffer dev_intensityHistogram(context, CL_MEM_READ_WRITE, buffer_Size); 
 
-//		cl::Buffer dev_convolution_mask(context, CL_MEM_READ_ONLY, convolution_mask.size()*sizeof(float));
 		
 		auto beginning = chrono::high_resolution_clock::now(); // Starts measuring whole program execution time.
 
 		//4.1 Copy images to device memory
 		cl::Event imageBuffer;
 		queue.enqueueWriteBuffer(dev_image_input, CL_TRUE, 0, image_input.size(), &image_input.data()[0],nullptr, &imageBuffer);
-//		queue.enqueueWriteBuffer(dev_convolution_mask, CL_TRUE, 0, convolution_mask.size()*sizeof(float), &convolution_mask[0]);
+
 		imageBuffer.wait();
 
 		cl_ulong ibStart = imageBuffer.getProfilingInfo<CL_PROFILING_COMMAND_START>();
@@ -105,10 +100,8 @@ int main(int argc, char **argv) {
 		
 
 		//4.2 Setup and execute the kernel (i.e. device code)
-// 		cl::Kernel kernel = cl::Kernel(program, "avg_filterND");
-// 		kernel.setArg(0, dev_image_input);
-// 		kernel.setArg(1, dev_image_output);
-		// //		kernel.setArg(2, dev_convolution_mask);
+
+		
 		vector<int> histogram (bin_number,0);
 
 		cl::Event histogramBuffer;
@@ -136,13 +129,6 @@ int main(int argc, char **argv) {
 		double histogramKernelTime = static_cast<double>(hkEnd - hkStart) / 1e6;
 		cout<<"Histogram Kernel duration:"<< histogramKernelTime <<" milliseconds"<< endl;
 
-		
-		// queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(image_input.size()), cl::NullRange);
-		// queue.enqueueNDRangeKernel(kernel, cl::NullRange, 
-		// 	cl::NDRange(image_input.width(), image_input.height(), image_input.spectrum()), 
-		// 	cl::NullRange);
-
-		// vector<unsigned char> output_buffer(image_input.size());
 	
 		//4.3 Copy the result from device to host
 		// queue.enqueueReadBuffer(dev_image_output, CL_TRUE, 0, output_buffer.size(), &output_buffer.data()[0]);
@@ -163,14 +149,14 @@ int main(int argc, char **argv) {
 		double histogramReadTime = static_cast<double>(hrEnd - hrStart) / 1e6;
 		cout<<"Histogram Read duration:"<< histogramReadTime <<" milliseconds"<< endl;
 
-		// int jobCount;
+		int jobCount;
 
-		// for (int i=0; i<histogram.size();i++){
-		// 	// cout<<histogram[i]<<endl;
-		// 	jobCount+= histogram[i];
-		// }
+		for (int i=0; i<histogram.size();i++){
+			// cout<<histogram[i]<<endl;
+			jobCount+= histogram[i];
+		}
 
-		// cout<<jobCount<<endl;
+		cout<<jobCount<<endl;
 
 		cl::Kernel kernelCom = cl::Kernel(program, "scan_bl");
 		kernelCom.setArg(0, dev_intensityHistogram);
