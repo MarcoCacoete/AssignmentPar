@@ -136,7 +136,7 @@ int main(int argc, char **argv) {
 		double histogramKernelTime = static_cast<double>(hkEnd - hkStart) / 1e6;
 		cout<<"Histogram Kernel duration:"<< histogramKernelTime <<" milliseconds"<< endl;
 
-
+		
 		// queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(image_input.size()), cl::NullRange);
 		// queue.enqueueNDRangeKernel(kernel, cl::NullRange, 
 		// 	cl::NDRange(image_input.width(), image_input.height(), image_input.spectrum()), 
@@ -151,20 +151,41 @@ int main(int argc, char **argv) {
 		queue.enqueueReadBuffer(dev_intensityHistogram, CL_TRUE, 0, buffer_Size, &histogram.data()[0],nullptr, &histogramRead);
 		histogramRead.wait();
 
+		CImg<int> histogramGraph(bin_number, 1, 1, 1, 0); // Create a 1D CImg object for the raw histogram
+		for (int i = 0; i < bin_number; ++i) {
+			histogramGraph(i) = histogram[i]; // Copy raw histogram values
+		}
+		
+		
 		cl_ulong hrStart = histogramRead.getProfilingInfo<CL_PROFILING_COMMAND_START>();
 		cl_ulong hrEnd = histogramRead.getProfilingInfo<CL_PROFILING_COMMAND_END>();
 
 		double histogramReadTime = static_cast<double>(hrEnd - hrStart) / 1e6;
 		cout<<"Histogram Read duration:"<< histogramReadTime <<" milliseconds"<< endl;
 
-		int jobCount;
+		// int jobCount;
 
 		// for (int i=0; i<histogram.size();i++){
-		// 	cout<<histogram[i]<<endl;
+		// 	// cout<<histogram[i]<<endl;
 		// 	jobCount+= histogram[i];
 		// }
 
 		// cout<<jobCount<<endl;
+
+		cl::Kernel kernelCom = cl::Kernel(program, "scan_bl");
+		kernelCom.setArg(0, dev_intensityHistogram);
+
+		vector<int> histogramScan (bin_number,0);
+
+		queue.enqueueNDRangeKernel(kernelCom, cl::NullRange, cl::NDRange(bin_number), cl::NullRange,nullptr);
+
+
+		queue.enqueueReadBuffer(dev_intensityHistogram, CL_TRUE, 0, buffer_Size, &histogramScan.data()[0],nullptr);
+
+		CImg<int> histogramGraphCom(bin_number, 1, 1, 1, 0); // Create a 1D CImg object for the raw histogram
+		for (int i = 0; i < bin_number; ++i) {
+			histogramGraphCom(i) = histogramScan[i]; // Copy raw histogram values
+		}
 
 		// This finishes the time count and calculates the difference between the 2 registered timestamps so we get the total duration of the events.
 		auto ending = chrono::high_resolution_clock::now();
@@ -183,6 +204,11 @@ int main(int argc, char **argv) {
 		//     disp_input.wait(1);
 		//     disp_output.wait(1);
 	    // }		
+
+		//  display_graph call
+		histogramGraph.display_graph("Histogram", 3,1,"VALUES",0,255,"COUNT PER BIN",0,histogramGraph.max(),true);	
+		histogramGraphCom.display_graph("Histogram", 3,1,"VALUES",0,255,"COUNT PER BIN",0,histogramGraphCom.max(),true);		
+	
 
 	}
 	catch (const cl::Error& err) {
