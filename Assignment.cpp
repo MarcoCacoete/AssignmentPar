@@ -81,8 +81,8 @@ int main(int argc, char **argv) {
 
 		size_t buffer_Size = bin_number * sizeof(int);
 
-		cl::Buffer dev_intensityHistogram(context, CL_MEM_READ_WRITE, buffer_Size); 
-
+		cl::Buffer dev_intensityHistogram(context, CL_MEM_READ_WRITE, buffer_Size);
+		cl::Buffer dev_comHistogram(context, CL_MEM_READ_WRITE, buffer_Size); 
 		
 		auto beginning = chrono::high_resolution_clock::now(); // Starts measuring whole program execution time.
 
@@ -100,7 +100,6 @@ int main(int argc, char **argv) {
 		
 
 		//4.2 Setup and execute the kernel (i.e. device code)
-
 		
 		vector<int> histogram (bin_number,0);
 
@@ -137,9 +136,9 @@ int main(int argc, char **argv) {
 		queue.enqueueReadBuffer(dev_intensityHistogram, CL_TRUE, 0, buffer_Size, &histogram.data()[0],nullptr, &histogramRead);
 		histogramRead.wait();
 
-		CImg<int> histogramGraph(bin_number, 1, 1, 1, 0); // Create a 1D CImg object for the raw histogram
+		CImg<float> histogramGraph(bin_number, 1, 1, 1, 0); // Create a 1D CImg object for the raw histogram
 		for (int i = 0; i < bin_number; ++i) {
-			histogramGraph(i) = histogram[i]; // Copy raw histogram values
+			histogramGraph(i) = histogram[i]/10; // Copy raw histogram values
 		}
 		
 		
@@ -149,33 +148,49 @@ int main(int argc, char **argv) {
 		double histogramReadTime = static_cast<double>(hrEnd - hrStart) / 1e6;
 		cout<<"Histogram Read duration:"<< histogramReadTime <<" milliseconds"<< endl;
 
-		int jobCount;
+		int jobCount=0;
 
 		for (int i=0; i<histogram.size();i++){
 			// cout<<histogram[i]<<endl;
 			jobCount+= histogram[i];
 		}
+		int width = image_input.width();
+		int height = image_input.height();
 
-		cout<<jobCount<<endl;
+		cout<<"Width:"<<width<<endl;
+		cout<<"Height:"<<height<<endl;
+		cout<<"Pixel count: "<<width*height<<endl;
+		cout<<"Jobcount:"<<jobCount<<endl;
+
+
+		vector<int> histogramCom (bin_number,0);
+		queue.enqueueWriteBuffer(dev_comHistogram, CL_TRUE, 0, buffer_Size, &histogram.data()[0],nullptr);
 
 		cl::Kernel kernelCom = cl::Kernel(program, "scan_bl");
-		kernelCom.setArg(0, dev_intensityHistogram);
-
-		vector<int> histogramScan (bin_number,0);
-
+		kernelCom.setArg(0, dev_comHistogram);
 		queue.enqueueNDRangeKernel(kernelCom, cl::NullRange, cl::NDRange(bin_number), cl::NullRange,nullptr);
+		queue.enqueueReadBuffer(dev_comHistogram, CL_TRUE, 0, buffer_Size, &histogramCom.data()[0],nullptr);
 
-
-		queue.enqueueReadBuffer(dev_intensityHistogram, CL_TRUE, 0, buffer_Size, &histogramScan.data()[0],nullptr);
-
-		CImg<int> histogramGraphCom(bin_number, 1, 1, 1, 0); // Create a 1D CImg object for the raw histogram
+		CImg<float> histogramGraphCom(bin_number, 1, 1, 1, 0); // Create a 1D CImg object for the raw histogram
 		for (int i = 0; i < bin_number; ++i) {
-			histogramGraphCom(i) = histogramScan[i]; // Copy raw histogram values
+			histogramGraphCom(i) = histogramCom[i]/1000; // Copy raw histogram values
 		}
 
 		// This finishes the time count and calculates the difference between the 2 registered timestamps so we get the total duration of the events.
 		auto ending = chrono::high_resolution_clock::now();
 		auto total = chrono::duration<double,milli>(ending-beginning).count() ;
+
+		// // Print raw histogram values
+		// cout << "Raw Histogram:" << endl;
+		// for (int i = 0; i < bin_number; ++i) {
+		// 	cout << "Bin " << i << ": " << histogram[i] << endl;
+		// }
+
+		// // Print cumulative histogram values
+		// cout << "Cumulative Histogram:" << endl;
+		// for (int i = 0; i < bin_number; ++i) {
+		// 	cout << "Bin " << i << ": " << histogramCom[i] << endl;
+		// }
 
 		cout<<"Total time to run program:"<< total <<" milliseconds"<< endl;
 
