@@ -5,10 +5,15 @@ kernel void intensityHistogram(global const uchar* inputImage, global int* histo
 	atomic_inc(&histogramOutput[intensityValue]);  // Increments the corresponding bin each time by using the intensity value as the index number.
 }
 
+kernel void histogram_reduce(global const uchar* inputImage, global int* histogramOutput, int numBins){
+	int id = get_global_id(0); // Gets work item id
+	
+}
 
-// cumulative histogram based on algorithm found on tutorial 3 workshop materials
 
-//Blelloch basic exclusive scan
+
+//Blelloch basic exclusive scan cumulative histogram based on algorithm found on tutorial 3 workshop materials
+
 kernel void scan_bl(global int* A) {
 	int id = get_global_id(0);
 	int N = get_global_size(0);

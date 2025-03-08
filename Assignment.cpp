@@ -5,7 +5,7 @@
 #include "CImg.h"
 
 
-// This code is adapted from the code provided for the Tutorial 2 task in the workshops.
+// This host code is adapted from the host code provided for the Tutorial 2 task in the workshops.
 
 using namespace cimg_library;
 using namespace std;
@@ -87,6 +87,7 @@ int main(int argc, char **argv) {
 		auto beginning = chrono::high_resolution_clock::now(); // Starts measuring whole program execution time.
 
 		//4.1 Copy images to device memory
+		
 		cl::Event imageBuffer;
 		queue.enqueueWriteBuffer(dev_image_input, CL_TRUE, 0, image_input.size(), &image_input.data()[0],nullptr, &imageBuffer);
 
@@ -138,7 +139,8 @@ int main(int argc, char **argv) {
 
 		CImg<float> histogramGraph(bin_number, 1, 1, 1, 0); // Create a 1D CImg object for the raw histogram
 		for (int i = 0; i < bin_number; ++i) {
-			histogramGraph(i) = histogram[i]/10; // Copy raw histogram values
+			int maxValue = *max_element(histogram.begin(), histogram.end());
+			histogramGraph(i) = static_cast<float>(histogram[i])/maxValue; // Copy raw histogram values
 		}
 		
 		
@@ -173,7 +175,8 @@ int main(int argc, char **argv) {
 
 		CImg<float> histogramGraphCom(bin_number, 1, 1, 1, 0); // Create a 1D CImg object for the raw histogram
 		for (int i = 0; i < bin_number; ++i) {
-			histogramGraphCom(i) = histogramCom[i]/1000; // Copy raw histogram values
+			int maximumValue = *max_element(histogramCom.begin(), histogramCom.end());
+			histogramGraphCom(i) = static_cast<float>(histogramCom[i])/maximumValue; // Copy raw histogram values
 		}
 
 		// This finishes the time count and calculates the difference between the 2 registered timestamps so we get the total duration of the events.
