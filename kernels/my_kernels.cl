@@ -1,14 +1,68 @@
 // Histogram using image unsigned character array as input and an int array as output which will hold the intensity values and bin size I picked in host code.
-kernel void intensityHistogram(global const uchar* inputImage, global int* histogramOutput){
+kernel void hist_Atom(global const uchar* inputImage, global int* histogramOutput){
 	int id = get_global_id(0); // Gets work item id
 	int intensityValue = inputImage[id];  // This assigns the intensity value of the pixel that matches the id to a variable.
 	atomic_inc(&histogramOutput[intensityValue]);  // Increments the corresponding bin each time by using the intensity value as the index number.
 }
 
-kernel void histogram_reduce(global const uchar* inputImage, global int* histogramOutput, int numBins){
-	int id = get_global_id(0); // Gets work item id
-	
+
+// Code adapted and modified from the workshop materials for tutorial 3, more specifically the reduce_add_4 kernel.
+kernel void hist_Local(global const uchar* inputImage, global int* histogramOutput, local int* localHist, int binNumber){ 
+	int id = get_global_id(0);
+	int lid = get_local_id(0);
+	int N = get_local_size(0);
+
+	//cache all N values from global memory to local memory
+	for(int i = lid; i<binNumber; i+=N){
+		localHist[i] = 0;
+	};
+
+	barrier(CLK_LOCAL_MEM_FENCE);//wait for all local threads to finish copying from global to local memory
+
+	uchar intensityValue = inputImage[id];
+
+	atomic_add(&localHist[intensityValue],1);
+
+	barrier(CLK_LOCAL_MEM_FENCE);//wait for all local threads to finish updating local memory
+
+	//we add results from all local groups to the first element of the array
+	//serial operation! but works for any group size
+	//copy the cache to output array
+	for(int i = lid; i<binNumber; i+=N){
+		atomic_add(&histogramOutput[i], localHist[i]);
+	};
 }
+
+kernel void histNormal(global float* comHist,float maxBin){
+	int id = get_global_id(0);
+
+	comHist[id] = (float)comHist[id] / maxBin;
+
+		
+}
+
+//Hillis-Steele basic inclusive scan adapted from workshop materials for tutorial 3
+kernel void com_Hist(global int* A, global int* B) {
+	int id = get_global_id(0);
+	int N = get_global_size(0);
+	global int* C;
+
+	for (int stride = 1; stride < N; stride *= 2) {
+		B[id] = A[id];
+		if (id >= stride)
+			B[id] += A[id - stride];
+
+		barrier(CLK_GLOBAL_MEM_FENCE); //sync the step
+
+		C = A; A = B; B = C; //swap A & B between steps
+	}
+}
+
+// kernel void histogram_reduce(global const uchar* inputImage, global int* histogramOutput, int numBins){
+// 	int id = get_global_id(0); // Gets work item id
+// 	intensityValue = inputImage[id];  // This assigns the intensity value of the pixel that matches the id to a variable.
+// 	atomic_inc(&histogramOutput[intensityValue]);  // Increments the corresponding bin each time by using the intensity value as the index number.
+// }
 
 
 
@@ -44,81 +98,3 @@ kernel void scan_bl(global int* A) {
 	}
 }
 
-
-//a simple OpenCL kernel which copies all pixels from A to B
-kernel void identity(global const uchar* A, global uchar* B) {
-	int id = get_global_id(0);
-	B[id] = A[id];
-}
-
-kernel void filter_r(global const uchar* A, global uchar* B) {
-	int id = get_global_id(0);
-	int image_size = get_global_size(0)/3; //each image consists of 3 colour channels
-	int colour_channel = id / image_size; // 0 - red, 1 - green, 2 - blue
-
-	//this is just a copy operation, modify to filter out the individual colour channels
-	B[id] = A[id];
-}
-
-//simple ND identity kernel
-kernel void identityND(global const uchar* A, global uchar* B) {
-	int width = get_global_size(0); //image width in pixels
-	int height = get_global_size(1); //image height in pixels
-	int image_size = width*height; //image size in pixels
-	int channels = get_global_size(2); //number of colour channels: 3 for RGB
-
-	int x = get_global_id(0); //current x coord.
-	int y = get_global_id(1); //current y coord.
-	int c = get_global_id(2); //current colour channel
-
-	int id = x + y*width + c*image_size; //global id in 1D space
-
-	B[id] = A[id];
-}
-
-//2D averaging filter
-kernel void avg_filterND(global const uchar* A, global uchar* B) {
-	int width = get_global_size(0); //image width in pixels
-	int height = get_global_size(1); //image height in pixels
-	int image_size = width*height; //image size in pixels
-	int channels = get_global_size(2); //number of colour channels: 3 for RGB
-
-	int x = get_global_id(0); //current x coord.
-	int y = get_global_id(1); //current y coord.
-	int c = get_global_id(2); //current colour channel
-
-	int id = x + y*width + c*image_size; //global id in 1D space
-
-	uint result = 0;
-
-	for (int i = (x-1); i <= (x+1); i++)
-	for (int j = (y-1); j <= (y+1); j++) 
-		if (i >= 0 && i < width && j >= 0 && j < height)
-			result += A[i + j*width + c*image_size];
-
-	result /= 9;
-
-	B[id] = (uchar)result;
-}
-
-//2D 3x3 convolution kernel
-kernel void convolutionND(global const uchar* A, global uchar* B, constant float* mask) {
-	int width = get_global_size(0); //image width in pixels
-	int height = get_global_size(1); //image height in pixels
-	int image_size = width*height; //image size in pixels
-	int channels = get_global_size(2); //number of colour channels: 3 for RGB
-
-	int x = get_global_id(0); //current x coord.
-	int y = get_global_id(1); //current y coord.
-	int c = get_global_id(2); //current colour channel
-
-	int id = x + y*width + c*image_size; //global id in 1D space
-
-	float result = 0;
-
-	for (int i = (x-1); i <= (x+1); i++)
-	for (int j = (y-1); j <= (y+1); j++) 
-		result += A[i + j*width + c*image_size]*mask[i-(x-1) + j-(y-1)];
-
-	B[id] = (uchar)result;
-}

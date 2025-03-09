@@ -5,7 +5,7 @@
 #include "CImg.h"
 
 
-// This host code is adapted from the host code provided for the Tutorial 2 task in the workshops.
+// This host code is adapted from the host code provided for the Tutorial 2 tasks in the workshops.
 
 using namespace cimg_library;
 using namespace std;
@@ -80,9 +80,12 @@ int main(int argc, char **argv) {
 		int bin_number = 256;
 
 		size_t buffer_Size = bin_number * sizeof(int);
+		size_t buffer_Size_float = bin_number * sizeof(float);
+
 
 		cl::Buffer dev_intensityHistogram(context, CL_MEM_READ_WRITE, buffer_Size);
 		cl::Buffer dev_comHistogram(context, CL_MEM_READ_WRITE, buffer_Size); 
+		cl::Buffer dev_histNormal(context, CL_MEM_READ_WRITE, buffer_Size_float * bin_number);
 		
 		auto beginning = chrono::high_resolution_clock::now(); // Starts measuring whole program execution time.
 
@@ -114,14 +117,23 @@ int main(int argc, char **argv) {
 		double histogramBufferTime = static_cast<double>(hbEnd - hbStart) / 1e6;
 		cout<<"Histogram Buffer write duration:"<< histogramBufferTime <<" milliseconds"<< endl;
 
-		cl::Kernel kernel = cl::Kernel(program, "intensityHistogram");
-		kernel.setArg(0, dev_image_input);
-		kernel.setArg(1, dev_intensityHistogram);
+		cl::Kernel kernelHistLocal = cl::Kernel(program, "hist_Local");
+		kernelHistLocal.setArg(0, dev_image_input);
+		kernelHistLocal.setArg(1, dev_intensityHistogram);
+		kernelHistLocal.setArg(2, buffer_Size,NULL);
+		kernelHistLocal.setArg(3, bin_number);
+
+		// cl::Kernel kernelAtom = cl::Kernel(program, "hist_Atom");
+		// kernelAtom.setArg(0, dev_image_input);
+		// kernelAtom.setArg(1, dev_intensityHistogram);
 
 		cl::Event histogramKernel;
 
-		queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(image_input.size()), cl::NullRange,nullptr, &histogramKernel);
+		queue.enqueueNDRangeKernel(kernelHistLocal, cl::NullRange, cl::NDRange(image_input.size()), cl::NDRange(bin_number),nullptr, &histogramKernel);
 		histogramKernel.wait();
+
+		// queue.enqueueNDRangeKernel(kernelAtom, cl::NullRange, cl::NDRange(image_input.size()), cl::NullRange,nullptr, &histogramKernel);
+		// histogramKernel.wait();
 
 		cl_ulong hkStart = histogramKernel.getProfilingInfo<CL_PROFILING_COMMAND_START>();
 		cl_ulong hkEnd = histogramKernel.getProfilingInfo<CL_PROFILING_COMMAND_END>();
@@ -137,10 +149,12 @@ int main(int argc, char **argv) {
 		queue.enqueueReadBuffer(dev_intensityHistogram, CL_TRUE, 0, buffer_Size, &histogram.data()[0],nullptr, &histogramRead);
 		histogramRead.wait();
 
+		int maxValue = *max_element(histogram.begin(), histogram.end());
+
 		CImg<float> histogramGraph(bin_number, 1, 1, 1, 0); // Create a 1D CImg object for the raw histogram
 		for (int i = 0; i < bin_number; ++i) {
-			int maxValue = *max_element(histogram.begin(), histogram.end());
-			histogramGraph(i) = static_cast<float>(histogram[i])/maxValue; // Copy raw histogram values
+			// int maxValue = *max_element(histogram.begin(), histogram.end());
+			histogramGraph(i) = static_cast<float>(histogram[i]);//maxValue; // Copy raw histogram values
 		}
 		
 		
@@ -168,20 +182,60 @@ int main(int argc, char **argv) {
 		vector<int> histogramCom (bin_number,0);
 		queue.enqueueWriteBuffer(dev_comHistogram, CL_TRUE, 0, buffer_Size, &histogram.data()[0],nullptr);
 
-		cl::Kernel kernelCom = cl::Kernel(program, "scan_bl");
-		kernelCom.setArg(0, dev_comHistogram);
+		cl::Kernel kernelCom = cl::Kernel(program, "com_Hist");
+		kernelCom.setArg(0, dev_intensityHistogram);		
+		kernelCom.setArg(1, dev_comHistogram);
 		queue.enqueueNDRangeKernel(kernelCom, cl::NullRange, cl::NDRange(bin_number), cl::NullRange,nullptr);
+
+
+		// cl::Kernel kernelCom = cl::Kernel(program, "scan_bl");
+		// kernelCom.setArg(0, dev_comHistogram);
+		// queue.enqueueNDRangeKernel(kernelCom, cl::NullRange, cl::NDRange(bin_number), cl::NullRange,nullptr);
 		queue.enqueueReadBuffer(dev_comHistogram, CL_TRUE, 0, buffer_Size, &histogramCom.data()[0],nullptr);
 
-		CImg<float> histogramGraphCom(bin_number, 1, 1, 1, 0); // Create a 1D CImg object for the raw histogram
+
+		for (int i = 0;i<histogramCom.size();i++){
+			cout<<histogramCom[i]<<endl;
+		}
+
+
+		int maximumValue = *max_element(histogramCom.begin(), histogramCom.end());
+		float maximumBinValue = static_cast<float>(maximumValue);
+
+		// CImg<float> histogramGraphCom(bin_number, 1, 1, 1, 0); // Create a 1D CImg object for the raw histogram
+		// for (int i = 0; i < bin_number; ++i) {
+		// 	histogramGraphCom(i) = static_cast<float>(histogramCom[i]); // Copy raw histogram values
+		// }
+		// Convert intermediate results to floats for normalization
+		vector<float> histogramComFloat(bin_number, 0.0f); // New float vector
 		for (int i = 0; i < bin_number; ++i) {
-			int maximumValue = *max_element(histogramCom.begin(), histogramCom.end());
-			histogramGraphCom(i) = static_cast<float>(histogramCom[i])/maximumValue; // Copy raw histogram values
+			histogramComFloat[i] = static_cast<float>(histogramCom[i]); // Convert int to float
 		}
 
 		// This finishes the time count and calculates the difference between the 2 registered timestamps so we get the total duration of the events.
 		auto ending = chrono::high_resolution_clock::now();
 		auto total = chrono::duration<double,milli>(ending-beginning).count() ;
+
+		queue.enqueueWriteBuffer(dev_histNormal, CL_TRUE, 0, buffer_Size_float, &histogramComFloat.data()[0],nullptr);
+
+
+		cl::Kernel histNormal = cl::Kernel(program, "histNormal");
+		histNormal.setArg(0, dev_histNormal);	
+		histNormal.setArg(1, maximumBinValue);		
+	
+		queue.enqueueNDRangeKernel(histNormal, cl::NullRange, cl::NDRange(bin_number), cl::NullRange,nullptr);
+
+		queue.enqueueReadBuffer(dev_histNormal, CL_TRUE, 0, buffer_Size_float, &histogramComFloat.data()[0],nullptr);
+
+		CImg<float> histogramGraphCom(bin_number, 1, 1, 1, 0); // Create a 1D CImg object for the raw histogram
+		for (int i = 0; i < bin_number; ++i) {
+			histogramGraphCom(i) = histogramComFloat[i]; // Copy raw histogram values
+		}
+
+		// for (int i = 0;i<histogramComFloat.size();i++){
+		// 	cout<<histogramComFloat[i]<<endl;
+		// }
+
 
 		// // Print raw histogram values
 		// cout << "Raw Histogram:" << endl;
