@@ -93,6 +93,8 @@ int main(int argc, char **argv) {
 		
 		cl::Event imageBuffer;
 		queue.enqueueWriteBuffer(dev_image_input, CL_TRUE, 0, image_input.size(), &image_input.data()[0],nullptr, &imageBuffer);
+		queue.enqueueWriteBuffer(dev_image_output, CL_TRUE, 0, image_input.size(), &image_input.data()[0],nullptr, &imageBuffer);
+
 
 		imageBuffer.wait();
 
@@ -143,7 +145,6 @@ int main(int argc, char **argv) {
 
 	
 		//4.3 Copy the result from device to host
-		// queue.enqueueReadBuffer(dev_image_output, CL_TRUE, 0, output_buffer.size(), &output_buffer.data()[0]);
 
 		cl::Event histogramRead;
 		queue.enqueueReadBuffer(dev_intensityHistogram, CL_TRUE, 0, buffer_Size, &histogram.data()[0],nullptr, &histogramRead);
@@ -194,9 +195,9 @@ int main(int argc, char **argv) {
 		queue.enqueueReadBuffer(dev_comHistogram, CL_TRUE, 0, buffer_Size, &histogramCom.data()[0],nullptr);
 
 
-		for (int i = 0;i<histogramCom.size();i++){
-			cout<<histogramCom[i]<<endl;
-		}
+		// for (int i = 0;i<histogramCom.size();i++){
+		// 	cout<<histogramCom[i]<<endl;
+		// }
 
 
 		int maximumValue = *max_element(histogramCom.begin(), histogramCom.end());
@@ -232,6 +233,19 @@ int main(int argc, char **argv) {
 			histogramGraphCom(i) = histogramComFloat[i]; // Copy raw histogram values
 		}
 
+		cl::Kernel proj = cl::Kernel(program, "proj");
+		proj.setArg(0, dev_image_input);	
+		proj.setArg(1, dev_image_output);	
+		proj.setArg(2, dev_histNormal);	
+	
+		queue.enqueueNDRangeKernel(proj, cl::NullRange, cl::NDRange(image_input.size()), cl::NullRange,nullptr);
+
+
+		vector<unsigned char> output_buffer(image_input.size());
+
+		queue.enqueueReadBuffer(dev_image_output, CL_TRUE, 0, output_buffer.size(), &output_buffer.data()[0]);
+
+
 		// for (int i = 0;i<histogramComFloat.size();i++){
 		// 	cout<<histogramComFloat[i]<<endl;
 		// }
@@ -254,14 +268,14 @@ int main(int argc, char **argv) {
 
 
 
-		// CImg<unsigned char> output_image(output_buffer.data(), image_input.width(), image_input.height(), image_input.depth(), image_input.spectrum());
-		// CImgDisplay disp_output(output_image,"output");
+		CImg<unsigned char> output_image(output_buffer.data(), image_input.width(), image_input.height(), image_input.depth(), image_input.spectrum());
+		CImgDisplay disp_output(output_image,"output");
 
- 		// while (!disp_input.is_closed() && !disp_output.is_closed()
-		// 	&& !disp_input.is_keyESC() && !disp_output.is_keyESC()) {
-		//     disp_input.wait(1);
-		//     disp_output.wait(1);
-	    // }		
+ 		while (!disp_input.is_closed() && !disp_output.is_closed()
+			&& !disp_input.is_keyESC() && !disp_output.is_keyESC()) {
+		    disp_input.wait(1);
+		    disp_output.wait(1);
+	    }		
 
 		//  display_graph call
 		histogramGraph.display_graph("Histogram", 3,1,"VALUES",0,255,"COUNT PER BIN",0,histogramGraph.max(),true);	

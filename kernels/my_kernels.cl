@@ -45,26 +45,22 @@ kernel void histNormal(global float* comHist,float maxBin){
 kernel void com_Hist(global int* A, global int* B) {
 	int id = get_global_id(0);
 	int N = get_global_size(0);
-	global int* C;
+	B[id]=A[id];
+
+	barrier(CLK_GLOBAL_MEM_FENCE); //sync the step
 
 	for (int stride = 1; stride < N; stride *= 2) {
-		B[id] = A[id];
-		if (id >= stride)
-			B[id] += A[id - stride];
-
+		int memHolder=B[id];
 		barrier(CLK_GLOBAL_MEM_FENCE); //sync the step
 
-		C = A; A = B; B = C; //swap A & B between steps
+		if (id >= stride)
+			B[id] += B[id - stride];
+			else{
+				B[id] = memHolder;
+			}
+		barrier(CLK_GLOBAL_MEM_FENCE); //sync the step		
 	}
 }
-
-// kernel void histogram_reduce(global const uchar* inputImage, global int* histogramOutput, int numBins){
-// 	int id = get_global_id(0); // Gets work item id
-// 	intensityValue = inputImage[id];  // This assigns the intensity value of the pixel that matches the id to a variable.
-// 	atomic_inc(&histogramOutput[intensityValue]);  // Increments the corresponding bin each time by using the intensity value as the index number.
-// }
-
-
 
 //Blelloch basic exclusive scan cumulative histogram based on algorithm found on tutorial 3 workshop materials
 
@@ -98,3 +94,12 @@ kernel void scan_bl(global int* A) {
 	}
 }
 
+// Back projection kernel blind attempt at making from scratch.
+kernel void proj(global const uchar* inputImage, global  uchar* outputImage, global const float* LUT){
+
+	int id = get_global_id(0);
+	int value = inputImage[id];
+
+	outputImage[id] = LUT[value]*255;
+	
+} 
