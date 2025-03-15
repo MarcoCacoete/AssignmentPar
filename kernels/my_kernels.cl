@@ -43,23 +43,23 @@ kernel void histNormal(global float* comHist,float maxBin){
 
 //Hillis-Steele basic inclusive scan adapted from workshop materials for tutorial 3
 kernel void com_Hist(global int* A, global int* B) {
-	int id = get_global_id(0);
-	int N = get_global_size(0);
-	B[id]=A[id];
+    int id = get_global_id(0);
+    int N = get_global_size(0);
+    B[id] = A[id];
 
-	barrier(CLK_GLOBAL_MEM_FENCE); //sync the step
+    barrier(CLK_GLOBAL_MEM_FENCE); //sync the step
 
-	for (int stride = 1; stride < N; stride *= 2) {
-		int memHolder=B[id];
-		barrier(CLK_GLOBAL_MEM_FENCE); //sync the step
+    for (int stride = 1; stride < N; stride *= 2) {
+        int memHolder = B[id];
+        barrier(CLK_GLOBAL_MEM_FENCE); //sync the step
 
-		if (id >= stride)
-			B[id] += B[id - stride];
-			else{
-				B[id] = memHolder;
-			}
-		barrier(CLK_GLOBAL_MEM_FENCE); //sync the step		
-	}
+        if (id >= stride)
+            memHolder = B[id - stride];            
+        barrier(CLK_GLOBAL_MEM_FENCE); //sync the step    
+        if (id >= stride)
+            B[id] += memHolder;
+        barrier(CLK_GLOBAL_MEM_FENCE); //sync the step
+    }
 }
 
 //Blelloch basic exclusive scan cumulative histogram based on algorithm found on tutorial 3 workshop materials

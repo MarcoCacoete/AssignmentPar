@@ -186,7 +186,7 @@ int main(int argc, char **argv) {
 		cl::Kernel kernelCom = cl::Kernel(program, "com_Hist");
 		kernelCom.setArg(0, dev_intensityHistogram);		
 		kernelCom.setArg(1, dev_comHistogram);
-		queue.enqueueNDRangeKernel(kernelCom, cl::NullRange, cl::NDRange(bin_number), cl::NullRange,nullptr);
+		queue.enqueueNDRangeKernel(kernelCom, cl::NullRange, cl::NDRange(bin_number), cl::NDRange(bin_number),nullptr);
 
 
 		// cl::Kernel kernelCom = cl::Kernel(program, "scan_bl");
