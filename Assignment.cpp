@@ -10,6 +10,32 @@
 using namespace cimg_library;
 using namespace std;
 
+
+CImg<unsigned char> picture_output(const std::string& image_filename){
+	CImg<unsigned char> image_input(image_filename.c_str());
+	
+
+	int pic_width = image_input.width();  
+	int window_width = image_input.width();  
+	int window_height = image_input.height(); 
+	if (pic_width > 1080) {
+		window_width = image_input.width()/2;  
+		window_height = image_input.height()/2; 
+	}	
+	
+	CImgDisplay disp_input(window_width, window_height, "input", 0);
+
+	disp_input.display(image_input);
+
+	disp_input.resize(window_width, window_height);
+
+	while (!disp_input.is_closed()) {
+		disp_input.wait();
+	}
+	return image_input;
+
+}
+
 void print_help() {
 	std::cerr << "Application usage:" << std::endl;
 
@@ -24,6 +50,14 @@ int main(int argc, char **argv) {
 	//Part 1 - handle command line options such as device selection, verbosity, etc.
 	int platform_id = 0;
 	int device_id = 0;
+	// cout<<"Enter image name."<<endl;
+	
+	// string imageName;
+	
+	// cin>>imageName;
+
+	// string image_filename = imageName +".pgm";
+
 	string image_filename = "test.pgm";
 
 	for (int i = 1; i < argc; i++) {
@@ -38,10 +72,9 @@ int main(int argc, char **argv) {
 
 	//detect any potential exceptions
 	try {
-		CImg<unsigned char> image_input(image_filename.c_str());
-		CImgDisplay disp_input(image_input,"input");
+		CImg<unsigned char> image_input = picture_output(image_filename);
 
-
+		
 		//Part 3 - host operations
 		//3.1 Select computing devices
 		cl::Context context = GetContext(platform_id, device_id);
@@ -152,11 +185,7 @@ int main(int argc, char **argv) {
 
 		int maxValue = *max_element(histogram.begin(), histogram.end());
 
-		CImg<float> histogramGraph(bin_number, 1, 1, 1, 0); // Create a 1D CImg object for the raw histogram
-		for (int i = 0; i < bin_number; ++i) {
-			// int maxValue = *max_element(histogram.begin(), histogram.end());
-			histogramGraph(i) = static_cast<float>(histogram[i]);//maxValue; // Copy raw histogram values
-		}
+		
 		
 		
 		cl_ulong hrStart = histogramRead.getProfilingInfo<CL_PROFILING_COMMAND_START>();
@@ -228,10 +257,7 @@ int main(int argc, char **argv) {
 
 		queue.enqueueReadBuffer(dev_histNormal, CL_TRUE, 0, buffer_Size_float, &histogramComFloat.data()[0],nullptr);
 
-		CImg<float> histogramGraphCom(bin_number, 1, 1, 1, 0); // Create a 1D CImg object for the raw histogram
-		for (int i = 0; i < bin_number; ++i) {
-			histogramGraphCom(i) = histogramComFloat[i]; // Copy raw histogram values
-		}
+		
 
 		cl::Kernel proj = cl::Kernel(program, "proj");
 		proj.setArg(0, dev_image_input);	
@@ -264,24 +290,35 @@ int main(int argc, char **argv) {
 		// }
 
 		cout<<"Total time to run program:"<< total <<" milliseconds"<< endl;
-		//This is a test
 
+		// //  display_graph call
+		// histogramGraph.display_graph("Histogram", 3,1,"VALUES",0,255,"COUNT PER BIN",0,histogramGraph.max(),true);	
+		// histogramGraphCom.display_graph("Histogram", 3,1,"VALUES",0,255,"COUNT PER BIN",0,histogramGraphCom.max(),true);	
 
+		CImg<float> histogramGraph(bin_number, 1, 1, 1, 0); // Create a 1D CImg object for the raw histogram
+		for (int i = 0; i < bin_number; ++i) {
+			// int maxValue = *max_element(histogram.begin(), histogram.end());
+			histogramGraph(i) = static_cast<float>(histogram[i]);//maxValue; // Copy raw histogram values
+		}
+
+		CImg<float> histogramGraphCom(bin_number, 1, 1, 1, 0); // Create a 1D CImg object for the raw histogram
+		for (int i = 0; i < bin_number; ++i) {
+			histogramGraphCom(i) = histogramComFloat[i]; // Copy raw histogram values
+		}
+		
+		// Sets histogram window size
+		CImgDisplay disp_raw(800, 600, "Raw Histogram");     
+		CImgDisplay disp_com(800, 600, "Cumulative Histogram");
+
+		// Display histograms using the custom display objects
+		histogramGraph.display_graph(disp_raw, 3,1,"VALUES",0,255,"COUNT PER BIN",0,histogramGraph.max(),true);
+		histogramGraphCom.display_graph(disp_com, 3,1,"VALUES",0,255,"COUNT PER BIN",0,histogramGraphCom.max(),true);	
 
 
 		CImg<unsigned char> output_image(output_buffer.data(), image_input.width(), image_input.height(), image_input.depth(), image_input.spectrum());
-		CImgDisplay disp_output(output_image,"output");
-
- 		while (!disp_input.is_closed() && !disp_output.is_closed()
-			&& !disp_input.is_keyESC() && !disp_output.is_keyESC()) {
-		    disp_input.wait(1);
-		    disp_output.wait(1);
-	    }		
-
-		//  display_graph call
-		histogramGraph.display_graph("Histogram", 3,1,"VALUES",0,255,"COUNT PER BIN",0,histogramGraph.max(),true);	
-		histogramGraphCom.display_graph("Histogram", 3,1,"VALUES",0,255,"COUNT PER BIN",0,histogramGraphCom.max(),true);		
-	
+		string output_name = "output_image.pgm";
+		output_image.save("output_image.pgm");
+		picture_output(output_name);
 
 	}
 	catch (const cl::Error& err) {
