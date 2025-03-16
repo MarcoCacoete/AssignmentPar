@@ -5,7 +5,6 @@ kernel void hist_Atom(global const uchar* inputImage, global int* histogramOutpu
 	atomic_inc(&histogramOutput[intensityValue]);  // Increments the corresponding bin each time by using the intensity value as the index number.
 }
 
-
 // Code adapted and modified from the workshop materials for tutorial 3, more specifically the reduce_add_4 kernel.
 kernel void hist_Local(global const uchar* inputImage, global int* histogramOutput, local int* localHist, int binNumber){ 
 	int id = get_global_id(0);
@@ -37,7 +36,6 @@ kernel void histNormal(global float* comHist,float maxBin){
 	int id = get_global_id(0);
 
 	comHist[id] = (float)comHist[id] / maxBin;
-
 		
 }
 
