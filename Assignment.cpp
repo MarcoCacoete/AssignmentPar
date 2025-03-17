@@ -50,15 +50,15 @@ int main(int argc, char **argv) {
 	//Part 1 - handle command line options such as device selection, verbosity, etc.
 	int platform_id = 0;
 	int device_id = 0;
-	// cout<<"Enter image name."<<endl;
+	cout<<"Enter image name."<<endl;
 	
-	// string imageName;
+	string imageName;
 	
-	// cin>>imageName;
+	cin>>imageName;
 
-	// string image_filename = imageName +".pgm";
+	string image_filename = imageName ;
 
-	string image_filename = "test_large.pgm";
+	// string image_filename = "test_large.pgm";
 
 	for (int i = 1; i < argc; i++) {
 		if ((strcmp(argv[i], "-p") == 0) && (i < (argc - 1))) { platform_id = atoi(argv[++i]); }
@@ -109,19 +109,22 @@ int main(int argc, char **argv) {
 		cl::Buffer dev_image_input(context, CL_MEM_READ_ONLY, image_input.size());
 		cl::Buffer dev_image_output(context, CL_MEM_READ_WRITE, image_input.size()); //should be the same as input image
 
-		int image_size = image_input.size();		
+		int image_size = image_input.size();
+		int width = image_input.width();
+		int height = image_input.height();		
 
 		int bin_number = 256;
 
 		size_t globalWorkSize = ((image_size + bin_number - 1) / bin_number) * bin_number;
-
 		size_t buffer_Size = bin_number * sizeof(int);
 		size_t buffer_Size_float = bin_number * sizeof(float);
 
-
 		cl::Buffer dev_intensityHistogram(context, CL_MEM_READ_WRITE, buffer_Size);
 		cl::Buffer dev_comHistogram(context, CL_MEM_READ_WRITE, buffer_Size); 
-		cl::Buffer dev_histNormal(context, CL_MEM_READ_WRITE, buffer_Size_float * bin_number);
+		cl::Buffer dev_histNormal(context, CL_MEM_READ_WRITE, buffer_Size_float);
+		cl::Buffer dev_histR(context, CL_MEM_READ_WRITE, buffer_Size);
+		cl::Buffer dev_histG(context, CL_MEM_READ_WRITE, buffer_Size);
+		cl::Buffer dev_histB(context, CL_MEM_READ_WRITE, buffer_Size);
 		
 		auto beginning = chrono::high_resolution_clock::now(); // Starts measuring whole program execution time.
 
@@ -159,36 +162,111 @@ int main(int argc, char **argv) {
 
 		bool check = false;
 
+		
 		while(!check){
-			cout<<"What histogram kernel would you like to use. Local or Atom?"<<endl;
-			string kernelType;
-			cin>>kernelType;
-			std::transform(kernelType.begin(),kernelType.end(),kernelType.begin(),::tolower);
+			int spectrum = image_input.spectrum();
 
-			if(kernelType=="atom"){
-				cout<<"Atom"<<endl;
-				check = true;
-				cl::Kernel kernelAtom = cl::Kernel(program, "hist_Atom");
-				kernelAtom.setArg(0, dev_image_input);
-				kernelAtom.setArg(1, dev_intensityHistogram);
-				queue.enqueueNDRangeKernel(kernelAtom, cl::NullRange, cl::NDRange(image_input.size()), cl::NullRange,nullptr, &histogramKernel);
+			if(spectrum==1){
+				std::cout<<"What histogram kernel would you like to use. Local or Atom?"<<endl;
+				string kernelType;
+				cin>>kernelType;
+				std::transform(kernelType.begin(),kernelType.end(),kernelType.begin(),::tolower);
+
+				if(kernelType=="atom"){
+					std::cout<<"Atom"<<endl;
+					check = true;
+					cl::Kernel kernelAtom = cl::Kernel(program, "hist_Atom");
+					kernelAtom.setArg(0, dev_image_input);
+					kernelAtom.setArg(1, dev_intensityHistogram);
+					queue.enqueueNDRangeKernel(kernelAtom, cl::NullRange, cl::NDRange(image_input.size()), cl::NullRange,nullptr, &histogramKernel);
+					
+				}
+				else if(kernelType=="local"){
+					std::cout<<"Local"<<endl;
+					check = true;
+					cl::Kernel kernelLocal = cl::Kernel(program, "hist_Local");cl::Kernel kernelHistLocal = cl::Kernel(program, "hist_Local");
+					kernelHistLocal.setArg(0, dev_image_input);
+					kernelHistLocal.setArg(1, dev_intensityHistogram);
+					kernelHistLocal.setArg(2, buffer_Size,NULL);
+					kernelHistLocal.setArg(3, bin_number);
+					kernelHistLocal.setArg(4, image_size);	
+		
+					queue.enqueueNDRangeKernel(kernelHistLocal, cl::NullRange, cl::NDRange(globalWorkSize), cl::NDRange(bin_number),nullptr, &histogramKernel);
+
+				}
+				else{
+					std::cout<<"Invalid input. Please enter either Atom or Local"<<endl;
+				}
+			}else if(spectrum==3){
+
+				check=true;
+
+				int rgbImageSize = width*height; 
+				size_t imgRgbSize = rgbImageSize *3; // I needed to calculate this to take into account the extra channels.
+
+				const size_t localWorkSize = 256;
+				size_t globalWorkSize = ((imgRgbSize + localWorkSize - 1) / localWorkSize) * localWorkSize;
+				if (image_input.size() != imgRgbSize) {
+					cerr << "Error: RGB image buffer size (" << image_input.size() 
+						 << ") doesn't match expected (" << imgRgbSize << ")" << endl;
+					return 1;
+				}
+				cl::Buffer dev_image_input(context, CL_MEM_READ_ONLY, imgRgbSize);
+				cl::Buffer dev_image_output(context, CL_MEM_READ_WRITE, imgRgbSize);
+				queue.enqueueWriteBuffer(dev_image_input, CL_TRUE, 0, imgRgbSize, &image_input.data()[0], nullptr, &imageBuffer);
+				queue.enqueueWriteBuffer(dev_image_output, CL_TRUE, 0, imgRgbSize, &image_input.data()[0], nullptr, &imageBuffer);
+			
+				std::cout<<"Colour image detected"<<endl;
+				vector <int> histR (bin_number,0);
+				vector <int> histG (bin_number,0);
+				vector <int> histB (bin_number,0);		
 				
-			}
-			else if(kernelType=="local"){
-				cout<<"Local"<<endl;
-				check = true;
-				cl::Kernel kernelLocal = cl::Kernel(program, "hist_Local");cl::Kernel kernelHistLocal = cl::Kernel(program, "hist_Local");
-				kernelHistLocal.setArg(0, dev_image_input);
-				kernelHistLocal.setArg(1, dev_intensityHistogram);
-				kernelHistLocal.setArg(2, buffer_Size,NULL);
-				kernelHistLocal.setArg(3, bin_number);
-				kernelHistLocal.setArg(4, image_size);	
-	
-				queue.enqueueNDRangeKernel(kernelHistLocal, cl::NullRange, cl::NDRange(globalWorkSize), cl::NDRange(bin_number),nullptr, &histogramKernel);
+				queue.enqueueWriteBuffer(dev_histR, CL_TRUE, 0, buffer_Size, histR.data());
+				queue.enqueueWriteBuffer(dev_histG, CL_TRUE, 0, buffer_Size, histG.data());
+				queue.enqueueWriteBuffer(dev_histB, CL_TRUE, 0, buffer_Size, histB.data());
 
-			}
-			else{
-				cout<<"Invalid input. Please enter either Atom or Local"<<endl;
+				cl::Kernel kernelHistRgb = cl::Kernel(program, "hist_rgb");
+					kernelHistRgb.setArg(0, dev_image_input);
+					kernelHistRgb.setArg(1, dev_histR);
+					kernelHistRgb.setArg(2, dev_histG);
+					kernelHistRgb.setArg(3, dev_histB);
+					kernelHistRgb.setArg(4,rgbImageSize);
+						
+				queue.enqueueNDRangeKernel(kernelHistRgb, cl::NullRange, cl::NDRange(globalWorkSize), cl::NDRange(localWorkSize),nullptr, &histogramKernel);
+
+				queue.enqueueReadBuffer(dev_histR, CL_TRUE, 0, buffer_Size, &histR.data()[0],nullptr);
+				queue.enqueueReadBuffer(dev_histG, CL_TRUE, 0, buffer_Size, &histG.data()[0],nullptr);
+				queue.enqueueReadBuffer(dev_histB, CL_TRUE, 0, buffer_Size, &histB.data()[0],nullptr);
+
+				vector <vector<int>> histRgb = {histR,histG,histB};
+
+				for (int i = 0; i < histRgb.size(); i++) {
+					CImg<float> histogramGraphRgb(bin_number, 1, 1, 1, 0);
+					for (int j = 0; j < bin_number; ++j) {
+						histogramGraphRgb(j) = static_cast<float>(histRgb[i][j]); 
+					}
+					const char* histName;
+
+					switch(i){
+						case 0:
+							histName = "Red Histogram";
+							break;
+						case 1:
+							histName = "Green Histogram";
+							break;
+						case 2:
+							histName = "Blue Histogram";
+							break;
+					}					
+					
+					// Sets histogram window size
+					CImgDisplay disp_raw(800, 600, histName);     
+
+					// Displays histograms using the custom display objects
+					histogramGraphRgb.display_graph(disp_raw, 3,1,"VALUES",0,255,"COUNT PER BIN",0,histogramGraphRgb.max(),true);
+					
+				}
+
 			}
 		}
 
@@ -220,8 +298,7 @@ int main(int argc, char **argv) {
 			// cout<<histogram[i]<<endl;
 			jobCount+= histogram[i];
 		}
-		int width = image_input.width();
-		int height = image_input.height();
+		
 
 		cout<<"Width:"<<width<<endl;
 		cout<<"Height:"<<height<<endl;

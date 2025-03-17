@@ -1,12 +1,12 @@
 // Histogram using image unsigned character array as input and an int array as output which will hold the intensity values and bin size I picked in host code.
-kernel void hist_Atom(global const uchar* inputImage, global int* histogramOutput){
+kernel void hist_atom(global const uchar* inputImage, global int* histogramOutput){
 	int id = get_global_id(0); // Gets work item id
 	int intensityValue = inputImage[id];  // This assigns the intensity value of the pixel that matches the id to a variable.
 	atomic_inc(&histogramOutput[intensityValue]);  // Increments the corresponding bin each time by using the intensity value as the index number.
 }
 
 // Code adapted and modified from the workshop materials for tutorial 3, more specifically the reduce_add_4 kernel.
-kernel void hist_Local(global const uchar* inputImage, global int* histogramOutput, local int* localHist, int binNumber,int imageSize){ 
+kernel void hist_local(global const uchar* inputImage, global int* histogramOutput, local int* localHist, int binNumber,int imageSize){ 
 	int id = get_global_id(0);
 	int lid = get_local_id(0);
 	int N = get_local_size(0);
@@ -35,7 +35,7 @@ kernel void hist_Local(global const uchar* inputImage, global int* histogramOutp
 	};
 }
 
-kernel void histNormal(global float* comHist,float maxBin){
+kernel void hist_normal(global float* comHist,float maxBin){
 	int id = get_global_id(0);
 
 	comHist[id] = (float)comHist[id] / maxBin;
@@ -43,7 +43,7 @@ kernel void histNormal(global float* comHist,float maxBin){
 }
 
 //Hillis-Steele basic inclusive scan adapted from workshop materials for tutorial 3
-kernel void com_Hist(global int* A, global int* B) {
+kernel void com_hist(global int* A, global int* B) {
     int id = get_global_id(0);
     int N = get_global_size(0);
     B[id] = A[id];
@@ -96,7 +96,7 @@ kernel void scan_bl(global int* A) {
 }
 
 // Back projection kernel blind attempt at making from scratch.
-kernel void proj(global const uchar* inputImage, global  uchar* outputImage, global const float* LUT){
+kernel void back_projector(global const uchar* inputImage, global  uchar* outputImage, global const float* LUT){
 
 	int id = get_global_id(0);
 	int value = inputImage[id];
@@ -104,3 +104,38 @@ kernel void proj(global const uchar* inputImage, global  uchar* outputImage, glo
 	outputImage[id] = LUT[value]*255;
 	
 } 
+
+// Attempt at an rgb histogram maker kernel.
+kernel void hist_rgb(global const uchar* inputImage, global int* histR,global int* histG,global int* histB, int rgbImageSize){
+	int id = get_global_id(0); // Gets work item id
+	int lid = get_local_id(0);
+	local int localHistR[256];
+	local int localHistG[256];
+	local int localHistB[256];
+
+	 // Initialises local histograms to zero
+	if (lid < 256) {
+        localHistR[lid] = 0;
+        localHistG[lid] = 0;
+        localHistB[lid] = 0;
+    }
+	barrier(CLK_LOCAL_MEM_FENCE);
+	if (id < rgbImageSize) {
+		int rgbId = id*3;
+		int intensityValueR = inputImage[rgbId];  
+		int intensityValueG = inputImage[rgbId+1];  
+		int intensityValueB = inputImage[rgbId+2];  
+		atomic_inc(&localHistR[intensityValueR]);  
+		atomic_inc(&localHistG[intensityValueG]); 
+		atomic_inc(&localHistB[intensityValueB]); 
+	}
+	
+	barrier(CLK_LOCAL_MEM_FENCE);
+
+	if (lid < 256) {
+        atomic_add(&histR[lid], localHistR[lid]);
+        atomic_add(&histG[lid], localHistG[lid]);
+        atomic_add(&histB[lid], localHistB[lid]);
+    }
+}
+
