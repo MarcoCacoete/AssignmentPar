@@ -104,13 +104,16 @@ int main(int argc, char **argv) {
 		}
 
 		//Part 4 - device operations
-
-
+		
 		//device - buffers
 		cl::Buffer dev_image_input(context, CL_MEM_READ_ONLY, image_input.size());
 		cl::Buffer dev_image_output(context, CL_MEM_READ_WRITE, image_input.size()); //should be the same as input image
 
+		int image_size = image_input.size();		
+
 		int bin_number = 256;
+
+		size_t globalWorkSize = ((image_size + bin_number - 1) / bin_number) * bin_number;
 
 		size_t buffer_Size = bin_number * sizeof(int);
 		size_t buffer_Size_float = bin_number * sizeof(float);
@@ -129,10 +132,10 @@ int main(int argc, char **argv) {
 		queue.enqueueWriteBuffer(dev_image_output, CL_TRUE, 0, image_input.size(), &image_input.data()[0],nullptr, &imageBuffer);
 
 
-		imageBuffer.wait();
 
-		cl_ulong ibStart = imageBuffer.getProfilingInfo<CL_PROFILING_COMMAND_START>();
+		imageBuffer.wait();
 		cl_ulong ibEnd = imageBuffer.getProfilingInfo<CL_PROFILING_COMMAND_END>();
+		cl_ulong ibStart = imageBuffer.getProfilingInfo<CL_PROFILING_COMMAND_START>();
 
 		double imageBufferTime = static_cast<double>(ibEnd - ibStart) / 1e6;
 		cout<<"Image Buffer write duration:"<< imageBufferTime <<" milliseconds"<< endl;
@@ -178,8 +181,10 @@ int main(int argc, char **argv) {
 				kernelHistLocal.setArg(0, dev_image_input);
 				kernelHistLocal.setArg(1, dev_intensityHistogram);
 				kernelHistLocal.setArg(2, buffer_Size,NULL);
-				kernelHistLocal.setArg(3, bin_number);	
-				queue.enqueueNDRangeKernel(kernelHistLocal, cl::NullRange, cl::NDRange(image_input.size()), cl::NDRange(bin_number),nullptr, &histogramKernel);
+				kernelHistLocal.setArg(3, bin_number);
+				kernelHistLocal.setArg(4, image_size);	
+	
+				queue.enqueueNDRangeKernel(kernelHistLocal, cl::NullRange, cl::NDRange(globalWorkSize), cl::NDRange(bin_number),nullptr, &histogramKernel);
 
 			}
 			else{

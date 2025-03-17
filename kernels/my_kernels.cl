@@ -6,10 +6,13 @@ kernel void hist_Atom(global const uchar* inputImage, global int* histogramOutpu
 }
 
 // Code adapted and modified from the workshop materials for tutorial 3, more specifically the reduce_add_4 kernel.
-kernel void hist_Local(global const uchar* inputImage, global int* histogramOutput, local int* localHist, int binNumber){ 
+kernel void hist_Local(global const uchar* inputImage, global int* histogramOutput, local int* localHist, int binNumber,int imageSize){ 
 	int id = get_global_id(0);
 	int lid = get_local_id(0);
 	int N = get_local_size(0);
+
+	if(id>=imageSize) return; // This is a bounds check, it works with my kernel code global work size padding, 
+							  // only found out that workgroup size was working previously because gworksize was divisible by 256 by chance.
 
 	//cache all N values from global memory to local memory
 	for(int i = lid; i<binNumber; i+=N){
