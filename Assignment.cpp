@@ -50,7 +50,7 @@ int main(int argc, char **argv) {
 	//Part 1 - handle command line options such as device selection, verbosity, etc.
 	int platform_id = 0;
 	int device_id = 0;
-	cout<<"Enter image name."<<endl;
+	std::cout<<"Enter image name."<<endl;
 	
 	string imageName;
 	
@@ -112,6 +112,8 @@ int main(int argc, char **argv) {
 		int image_size = image_input.size();
 		int width = image_input.width();
 		int height = image_input.height();		
+		int spectrum = image_input.spectrum();
+
 
 		int bin_number = 256;
 
@@ -125,6 +127,9 @@ int main(int argc, char **argv) {
 		cl::Buffer dev_histR(context, CL_MEM_READ_WRITE, buffer_Size);
 		cl::Buffer dev_histG(context, CL_MEM_READ_WRITE, buffer_Size);
 		cl::Buffer dev_histB(context, CL_MEM_READ_WRITE, buffer_Size);
+		cl::Buffer dev_histRcom(context, CL_MEM_READ_WRITE, buffer_Size);
+		cl::Buffer dev_histGcom(context, CL_MEM_READ_WRITE, buffer_Size);
+		cl::Buffer dev_histBcom(context, CL_MEM_READ_WRITE, buffer_Size);
 		
 		auto beginning = chrono::high_resolution_clock::now(); // Starts measuring whole program execution time.
 
@@ -134,14 +139,12 @@ int main(int argc, char **argv) {
 		queue.enqueueWriteBuffer(dev_image_input, CL_TRUE, 0, image_input.size(), &image_input.data()[0],nullptr, &imageBuffer);
 		queue.enqueueWriteBuffer(dev_image_output, CL_TRUE, 0, image_input.size(), &image_input.data()[0],nullptr, &imageBuffer);
 
-
-
 		imageBuffer.wait();
 		cl_ulong ibEnd = imageBuffer.getProfilingInfo<CL_PROFILING_COMMAND_END>();
 		cl_ulong ibStart = imageBuffer.getProfilingInfo<CL_PROFILING_COMMAND_START>();
 
 		double imageBufferTime = static_cast<double>(ibEnd - ibStart) / 1e6;
-		cout<<"Image Buffer write duration:"<< imageBufferTime <<" milliseconds"<< endl;
+		std::cout<<"Image Buffer write duration:"<< imageBufferTime <<" milliseconds"<< endl;
 		
 
 		//4.2 Setup and execute the kernel (i.e. device code)
@@ -156,7 +159,7 @@ int main(int argc, char **argv) {
 		cl_ulong hbEnd = histogramBuffer.getProfilingInfo<CL_PROFILING_COMMAND_END>();
 
 		double histogramBufferTime = static_cast<double>(hbEnd - hbStart) / 1e6;
-		cout<<"Histogram Buffer write duration:"<< histogramBufferTime <<" milliseconds"<< endl;
+		std::cout<<"Histogram Buffer write duration:"<< histogramBufferTime <<" milliseconds"<< endl;
 
 		cl::Event histogramKernel;
 
@@ -164,7 +167,6 @@ int main(int argc, char **argv) {
 
 		
 		while(!check){
-			int spectrum = image_input.spectrum();
 
 			if(spectrum==1){
 				std::cout<<"What histogram kernel would you like to use. Local or Atom?"<<endl;
@@ -175,7 +177,7 @@ int main(int argc, char **argv) {
 				if(kernelType=="atom"){
 					std::cout<<"Atom"<<endl;
 					check = true;
-					cl::Kernel kernelAtom = cl::Kernel(program, "hist_Atom");
+					cl::Kernel kernelAtom = cl::Kernel(program, "hist_atom");
 					kernelAtom.setArg(0, dev_image_input);
 					kernelAtom.setArg(1, dev_intensityHistogram);
 					queue.enqueueNDRangeKernel(kernelAtom, cl::NullRange, cl::NDRange(image_input.size()), cl::NullRange,nullptr, &histogramKernel);
@@ -184,7 +186,7 @@ int main(int argc, char **argv) {
 				else if(kernelType=="local"){
 					std::cout<<"Local"<<endl;
 					check = true;
-					cl::Kernel kernelLocal = cl::Kernel(program, "hist_Local");cl::Kernel kernelHistLocal = cl::Kernel(program, "hist_Local");
+					cl::Kernel kernelLocal = cl::Kernel(program, "hist_local");cl::Kernel kernelHistLocal = cl::Kernel(program, "hist_local");
 					kernelHistLocal.setArg(0, dev_image_input);
 					kernelHistLocal.setArg(1, dev_intensityHistogram);
 					kernelHistLocal.setArg(2, buffer_Size,NULL);
@@ -197,7 +199,7 @@ int main(int argc, char **argv) {
 				else{
 					std::cout<<"Invalid input. Please enter either Atom or Local"<<endl;
 				}
-			}else if(spectrum==3){
+			}else{
 
 				check=true;
 
@@ -276,7 +278,7 @@ int main(int argc, char **argv) {
 		cl_ulong hkEnd = histogramKernel.getProfilingInfo<CL_PROFILING_COMMAND_END>();
 
 		double histogramKernelTime = static_cast<double>(hkEnd - hkStart) / 1e6;
-		cout<<"Histogram Kernel duration:"<< histogramKernelTime <<" milliseconds"<< endl;
+		std::cout<<"Histogram Kernel duration:"<< histogramKernelTime <<" milliseconds"<< endl;
 	
 		//4.3 Copy the result from device to host
 
@@ -290,54 +292,98 @@ int main(int argc, char **argv) {
 		cl_ulong hrEnd = histogramRead.getProfilingInfo<CL_PROFILING_COMMAND_END>();
 
 		double histogramReadTime = static_cast<double>(hrEnd - hrStart) / 1e6;
-		cout<<"Histogram Read duration:"<< histogramReadTime <<" milliseconds"<< endl;
+		std::cout<<"Histogram Read duration:"<< histogramReadTime <<" milliseconds"<< endl;
 
 		int jobCount=0;
 
 		for (int i=0; i<histogram.size();i++){
-			// cout<<histogram[i]<<endl;
+			// std::cout<<histogram[i]<<endl;
 			jobCount+= histogram[i];
 		}
 		
 
-		cout<<"Width:"<<width<<endl;
-		cout<<"Height:"<<height<<endl;
-		cout<<"Pixel count: "<<width*height<<endl;
-		cout<<"Jobcount:"<<jobCount<<endl;
+		std::cout<<"Width:"<<width<<endl;
+		std::cout<<"Height:"<<height<<endl;
+		std::cout<<"Pixel count: "<<width*height<<endl;
+		std::cout<<"Jobcount:"<<jobCount<<endl;
 
 		vector<int> histogramCom (bin_number,0);
 		queue.enqueueWriteBuffer(dev_comHistogram, CL_TRUE, 0, buffer_Size, &histogram.data()[0],nullptr);
 
+		vector<int> histogramComR(bin_number,0);
+		vector<int> histogramComG(bin_number,0);
+		vector<int> histogramComB(bin_number,0);
+
+		queue.enqueueWriteBuffer(dev_histRcom, CL_TRUE, 0, buffer_Size, &histogramComR.data()[0],nullptr);
+		queue.enqueueWriteBuffer(dev_histGcom, CL_TRUE, 0, buffer_Size, &histogramComG.data()[0],nullptr);
+		queue.enqueueWriteBuffer(dev_histBcom, CL_TRUE, 0, buffer_Size, &histogramComB.data()[0],nullptr);
+		vector<cl::Buffer*> rgbBuffers = {&dev_histR, &dev_histG, &dev_histB};
+		vector<cl::Buffer*> rgbBuffersCom = {&dev_histRcom, &dev_histGcom, &dev_histBcom};		
+		vector<vector<int>> histogramComRgb = {histogramComR,histogramComG,histogramComB};
+
 		check = false;
 
 		while(!check){
-			cout<<"What comulative histogram kernel would you like to use. Hillis or Blelloch?"<<endl;
+			std::cout<<"What comulative histogram kernel would you like to use. Hillis or Blelloch?"<<endl;
 			string kernelType;
 			cin>>kernelType;
 			std::transform(kernelType.begin(),kernelType.end(),kernelType.begin(),::tolower);
-			if (kernelType=="hillis"){
-				cout<<"Hillis-Steele"<<endl;
-				check = true;
-				cl::Kernel kernelCom = cl::Kernel(program, "com_Hist");
-				kernelCom.setArg(0, dev_intensityHistogram);		
-				kernelCom.setArg(1, dev_comHistogram);
-				queue.enqueueNDRangeKernel(kernelCom, cl::NullRange, cl::NDRange(bin_number), cl::NDRange(bin_number),nullptr);
+			if(spectrum==1){
+				if (kernelType=="hillis"){
+					std::cout<<"Hillis-Steele"<<endl;
+					check = true;
+					cl::Kernel kernelCom = cl::Kernel(program, "com_hist");
+					kernelCom.setArg(0, dev_intensityHistogram);		
+					kernelCom.setArg(1, dev_comHistogram);
+					queue.enqueueNDRangeKernel(kernelCom, cl::NullRange, cl::NDRange(bin_number), cl::NDRange(bin_number),nullptr);
+				}
+				else if(kernelType=="blelloch"){
+					std::cout<<"Blelloch"<<endl;
+					check = true;			
+					cl::Kernel kernelCom = cl::Kernel(program, "scan_bl");
+					kernelCom.setArg(0, dev_comHistogram);
+					queue.enqueueNDRangeKernel(kernelCom, cl::NullRange, cl::NDRange(bin_number), cl::NDRange(bin_number),nullptr);
+				}
+				else{
+					std::cout<<"Invalid input. Please enter either Scan or Blelloch"<<endl;
+				}
+				queue.enqueueReadBuffer(dev_comHistogram, CL_TRUE, 0, buffer_Size, &histogramCom.data()[0],nullptr);
+
 			}
-			else if(kernelType=="blelloch"){
-				cout<<"Blelloch"<<endl;
-				check = true;			
-				cl::Kernel kernelCom = cl::Kernel(program, "scan_bl");
-				kernelCom.setArg(0, dev_comHistogram);
-				queue.enqueueNDRangeKernel(kernelCom, cl::NullRange, cl::NDRange(bin_number), cl::NDRange(bin_number),nullptr);
-			}
-			else{
-				cout<<"Invalid input. Please enter either Scan or Blelloch"<<endl;
+			else{				
+
+				for(int i=0;i<rgbBuffers.size();i++){
+					if (kernelType=="hillis"){
+						std::cout<<"Hillis-Steele"<<endl;
+						check = true;
+						cl::Kernel kernelCom = cl::Kernel(program, "com_hist");
+						kernelCom.setArg(0, *rgbBuffers[i]);		
+						kernelCom.setArg(1, *rgbBuffersCom[i]);
+						queue.enqueueNDRangeKernel(kernelCom, cl::NullRange, cl::NDRange(bin_number), cl::NDRange(bin_number),nullptr);
+					}
+					else if(kernelType=="blelloch"){
+						std::cout<<"Blelloch"<<endl;
+						check = true;			
+						cl::Kernel kernelCom = cl::Kernel(program, "scan_bl");
+						kernelCom.setArg(0, *rgbBuffers[i]);
+						queue.enqueueNDRangeKernel(kernelCom, cl::NullRange, cl::NDRange(bin_number), cl::NDRange(bin_number),nullptr);
+					}
+					else{
+						std::cout<<"Invalid input. Please enter either Scan or Blelloch"<<endl;
+					}
+				}
+
+				queue.enqueueReadBuffer(dev_histRcom, CL_TRUE, 0, buffer_Size, &histogramComR.data()[0],nullptr);
+				queue.enqueueReadBuffer(dev_histGcom, CL_TRUE, 0, buffer_Size, &histogramComG.data()[0],nullptr);
+				queue.enqueueReadBuffer(dev_histBcom, CL_TRUE, 0, buffer_Size, &histogramComB.data()[0],nullptr);
+
 			}
 			
 		}
-		queue.enqueueReadBuffer(dev_comHistogram, CL_TRUE, 0, buffer_Size, &histogramCom.data()[0],nullptr);
 
-		int maximumValue = *max_element(histogramCom.begin(), histogramCom.end());
+		if(spectrum==1){
+
+		int maximumValue = histogramCom[bin_number - 1];
 		float maximumBinValue = static_cast<float>(maximumValue);
 
 		// Convert intermediate results to floats for normalization
@@ -352,14 +398,14 @@ int main(int argc, char **argv) {
 
 		queue.enqueueWriteBuffer(dev_histNormal, CL_TRUE, 0, buffer_Size_float, &histogramComFloat.data()[0],nullptr);
 
-		cl::Kernel histNormal = cl::Kernel(program, "histNormal");
+		cl::Kernel histNormal = cl::Kernel(program, "hist_normal");
 		histNormal.setArg(0, dev_histNormal);	
 		histNormal.setArg(1, maximumBinValue);		
 	
 		queue.enqueueNDRangeKernel(histNormal, cl::NullRange, cl::NDRange(bin_number), cl::NullRange,nullptr);
 		queue.enqueueReadBuffer(dev_histNormal, CL_TRUE, 0, buffer_Size_float, &histogramComFloat.data()[0],nullptr);		
 
-		cl::Kernel proj = cl::Kernel(program, "proj");
+		cl::Kernel proj = cl::Kernel(program, "back_projector");
 		proj.setArg(0, dev_image_input);	
 		proj.setArg(1, dev_image_output);	
 		proj.setArg(2, dev_histNormal);	
@@ -370,16 +416,12 @@ int main(int argc, char **argv) {
 		queue.enqueueReadBuffer(dev_image_output, CL_TRUE, 0, output_buffer.size(), &output_buffer.data()[0]);
 
 
-		cout<<"Total time to run program:"<< total <<" milliseconds"<< endl;
+		std::cout<<"Total time to run program:"<< total <<" milliseconds"<< endl;
 
-		// //  display_graph call
-		// histogramGraph.display_graph("Histogram", 3,1,"VALUES",0,255,"COUNT PER BIN",0,histogramGraph.max(),true);	
-		// histogramGraphCom.display_graph("Histogram", 3,1,"VALUES",0,255,"COUNT PER BIN",0,histogramGraphCom.max(),true);	
-
-		CImg<float> histogramGraph(bin_number, 1, 1, 1, 0); // Create a 1D CImg object for the raw histogram
+		CImg<int> histogramGraph(bin_number, 1, 1, 1, 0); // Create a 1D CImg object for the raw histogram
 		for (int i = 0; i < bin_number; ++i) {
 			// int maxValue = *max_element(histogram.begin(), histogram.end());
-			histogramGraph(i) = static_cast<float>(histogram[i]);//maxValue; // Copy raw histogram values
+			histogramGraph(i) =histogram[i];//maxValue; // Copy raw histogram values
 		}
 
 		CImg<float> histogramGraphCom(bin_number, 1, 1, 1, 0); // Create a 1D CImg object for the raw histogram
@@ -400,6 +442,77 @@ int main(int argc, char **argv) {
 		string output_name = "output_image.pgm";
 		output_image.save("output_image.pgm");
 		picture_output(output_name);
+	}else{
+
+		cl::Buffer dev_histNormalR(context, CL_MEM_READ_WRITE, buffer_Size_float);
+		cl::Buffer dev_histNormalG(context, CL_MEM_READ_WRITE, buffer_Size_float);
+		cl::Buffer dev_histNormalB(context, CL_MEM_READ_WRITE, buffer_Size_float);
+
+		vector<cl::Buffer*> rgbBuffersComNorm = {&dev_histNormalR, &dev_histNormalG, &dev_histNormalB};
+
+		// Convert intermediate results to floats for normalization
+		vector<float> histogramComFloatR(bin_number, 0.0f); // New float vector
+		vector<float> histogramComFloatG(bin_number, 0.0f); // New float vector
+		vector<float> histogramComFloatB(bin_number, 0.0f); // New float vector
+		vector <vector<float>*> histogramComRgbFloat = {&histogramComFloatR,&histogramComFloatG,&histogramComFloatB};
+		float maximumValue;
+		float maximumBinValue;
+
+		for(int i=0;i<histogramComRgb.size();i++){
+			
+			for (int j = 0; j < bin_number; ++j) 
+			(*histogramComRgbFloat[i])[j] = static_cast<float>(histogramComRgb[i][j]); // Convert int to float
+		}							
+
+		for(int i=0;i<histogramComRgb.size();i++){	
+			maximumValue = histogramComRgb[i][bin_number-1];
+			std::cout<<maximumValue<<endl;
+			maximumValue = static_cast<float>(maximumValue);
+			std::cout<<maximumValue<<endl;
+
+			queue.enqueueWriteBuffer(*rgbBuffersComNorm[i], CL_TRUE, 0, buffer_Size_float, &(*histogramComRgbFloat[i]).data()[0],nullptr);
+			cl::Kernel histNormal = cl::Kernel(program, "hist_normal");
+			histNormal.setArg(0, *rgbBuffersComNorm[i]);	
+			histNormal.setArg(1, maximumValue);		
+		
+			queue.enqueueNDRangeKernel(histNormal, cl::NullRange, cl::NDRange(bin_number), cl::NullRange,nullptr);
+			queue.enqueueReadBuffer(*rgbBuffersComNorm[i], CL_TRUE, 0, buffer_Size_float, &(*histogramComRgbFloat[i]).data()[0],nullptr);		
+			
+			// //  display_graph call
+			// histogramGraph.display_graph("Histogram", 3,1,"VALUES",0,255,"COUNT PER BIN",0,histogramGraph.max(),true);	
+			// histogramGraphCom.display_graph("Histogram", 3,1,"VALUES",0,255,"COUNT PER BIN",0,histogramGraphCom.max(),true);	
+
+			// CImg<float> histogramGraph(bin_number, 1, 1, 1, 0); // Create a 1D CImg object for the raw histogram
+			// for (int i = 0; i < bin_number; ++i) {
+			// 	// int maxValue = *max_element(histogram.begin(), histogram.end());
+			// 	histogramGraph(i) = static_cast<float>(histogram[i]);//maxValue; // Copy raw histogram values
+			// }
+
+			CImg<float> histogramGraphCom(bin_number, 1, 1, 1, 0); // Create a 1D CImg object for the raw histogram
+			for (int j = 0; j < bin_number; ++j) {
+				histogramGraphCom(j) = (*histogramComRgbFloat[i])[j]; // Copy raw histogram values
+				// std::cout<< (*histogramComRgbFloat[i])[j]<<endl;
+			}
+			
+			// // Sets histogram window size
+			// CImgDisplay disp_raw(800, 600, "Raw Histogram");     
+			CImgDisplay disp_com(800, 600, "Cumulative Histogram");
+
+			// // Display histograms using the custom display objects
+			// histogramGraph.display_graph(disp_raw, 3,1,"VALUES",0,255,"COUNT PER BIN",0,histogramGraph.max(),true);
+			histogramGraphCom.display_graph(disp_com, 3,1,"VALUES",0,255,"COUNT PER BIN",0,histogramGraphCom.max(),true);	
+
+		}
+
+		// This finishes the time count and calculates the difference between the 2 registered timestamps so we get the total duration of the events.
+		auto ending = chrono::high_resolution_clock::now();
+		auto total = chrono::duration<double,milli>(ending-beginning).count() ;
+
+		std::cout<<"Total time to run program:"<< total <<" milliseconds"<< endl;
+
+
+
+	}
 
 	}
 	catch (const cl::Error& err) {
