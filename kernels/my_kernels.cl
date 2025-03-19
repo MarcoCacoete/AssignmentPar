@@ -137,5 +137,18 @@ kernel void hist_rgb(global const uchar* inputImage, global int* histR,global in
         atomic_add(&histG[lid], localHistG[lid]);
         atomic_add(&histB[lid], localHistB[lid]);
     }
+
+	
 }
 
+// Back projection kernel blind attempt at making from scratch.
+kernel void back_projectorRgb(global const uchar* inputImage, global  uchar* outputImage, global const float* LUTr,global const float* LUTg,global const float* LUTb){
+
+	int id = get_global_id(0);
+	int rgbId = id*3;
+	outputImage[rgbId] = LUTr[inputImage[rgbId]]*255;
+	outputImage[rgbId+1] = LUTg[inputImage[rgbId+1]]*255;
+	outputImage[rgbId+2] = LUTb[inputImage[rgbId+2]]*255;
+
+	
+} 

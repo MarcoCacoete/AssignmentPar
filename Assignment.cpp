@@ -103,24 +103,22 @@ int main(int argc, char **argv) {
 			throw err;
 		}
 
-		//Part 4 - device operations
-		
-		//device - buffers
-		cl::Buffer dev_image_input(context, CL_MEM_READ_ONLY, image_input.size());
-		cl::Buffer dev_image_output(context, CL_MEM_READ_WRITE, image_input.size()); //should be the same as input image
+		//Part 4 - device operations		
 
-		int image_size = image_input.size();
+		int image_size = image_input.size();		
 		int width = image_input.width();
 		int height = image_input.height();		
 		int spectrum = image_input.spectrum();
-
-
+		int rgbImageSize = width*height; 
 		int bin_number = 256;
+		const size_t localWorkSize = 256;
 
 		size_t globalWorkSize = ((image_size + bin_number - 1) / bin_number) * bin_number;
 		size_t buffer_Size = bin_number * sizeof(int);
 		size_t buffer_Size_float = bin_number * sizeof(float);
 
+		cl::Buffer dev_image_input(context, CL_MEM_READ_ONLY, image_size);
+		cl::Buffer dev_image_output(context, CL_MEM_READ_WRITE, image_size); //should be the same as input image
 		cl::Buffer dev_intensityHistogram(context, CL_MEM_READ_WRITE, buffer_Size);
 		cl::Buffer dev_comHistogram(context, CL_MEM_READ_WRITE, buffer_Size); 
 		cl::Buffer dev_histNormal(context, CL_MEM_READ_WRITE, buffer_Size_float);
@@ -136,8 +134,8 @@ int main(int argc, char **argv) {
 		//4.1 Copy images to device memory
 		
 		cl::Event imageBuffer;
-		queue.enqueueWriteBuffer(dev_image_input, CL_TRUE, 0, image_input.size(), &image_input.data()[0],nullptr, &imageBuffer);
-		queue.enqueueWriteBuffer(dev_image_output, CL_TRUE, 0, image_input.size(), &image_input.data()[0],nullptr, &imageBuffer);
+		queue.enqueueWriteBuffer(dev_image_input, CL_TRUE, 0, image_size, &image_input.data()[0],nullptr, &imageBuffer);
+		queue.enqueueWriteBuffer(dev_image_output, CL_TRUE, 0, image_size, &image_input.data()[0],nullptr, &imageBuffer);
 
 		imageBuffer.wait();
 		cl_ulong ibEnd = imageBuffer.getProfilingInfo<CL_PROFILING_COMMAND_END>();
@@ -164,7 +162,6 @@ int main(int argc, char **argv) {
 		cl::Event histogramKernel;
 
 		bool check = false;
-
 		
 		while(!check){
 
@@ -180,7 +177,7 @@ int main(int argc, char **argv) {
 					cl::Kernel kernelAtom = cl::Kernel(program, "hist_atom");
 					kernelAtom.setArg(0, dev_image_input);
 					kernelAtom.setArg(1, dev_intensityHistogram);
-					queue.enqueueNDRangeKernel(kernelAtom, cl::NullRange, cl::NDRange(image_input.size()), cl::NullRange,nullptr, &histogramKernel);
+					queue.enqueueNDRangeKernel(kernelAtom, cl::NullRange, cl::NDRange(image_size), cl::NullRange,nullptr, &histogramKernel);
 					
 				}
 				else if(kernelType=="local"){
@@ -194,29 +191,13 @@ int main(int argc, char **argv) {
 					kernelHistLocal.setArg(4, image_size);	
 		
 					queue.enqueueNDRangeKernel(kernelHistLocal, cl::NullRange, cl::NDRange(globalWorkSize), cl::NDRange(bin_number),nullptr, &histogramKernel);
-
 				}
 				else{
 					std::cout<<"Invalid input. Please enter either Atom or Local"<<endl;
 				}
 			}else{
 
-				check=true;
-
-				int rgbImageSize = width*height; 
-				size_t imgRgbSize = rgbImageSize *3; // I needed to calculate this to take into account the extra channels.
-
-				const size_t localWorkSize = 256;
-				size_t globalWorkSize = ((imgRgbSize + localWorkSize - 1) / localWorkSize) * localWorkSize;
-				if (image_input.size() != imgRgbSize) {
-					cerr << "Error: RGB image buffer size (" << image_input.size() 
-						 << ") doesn't match expected (" << imgRgbSize << ")" << endl;
-					return 1;
-				}
-				cl::Buffer dev_image_input(context, CL_MEM_READ_ONLY, imgRgbSize);
-				cl::Buffer dev_image_output(context, CL_MEM_READ_WRITE, imgRgbSize);
-				queue.enqueueWriteBuffer(dev_image_input, CL_TRUE, 0, imgRgbSize, &image_input.data()[0], nullptr, &imageBuffer);
-				queue.enqueueWriteBuffer(dev_image_output, CL_TRUE, 0, imgRgbSize, &image_input.data()[0], nullptr, &imageBuffer);
+				check=true;	
 			
 				std::cout<<"Colour image detected"<<endl;
 				vector <int> histR (bin_number,0);
@@ -265,10 +246,8 @@ int main(int argc, char **argv) {
 					CImgDisplay disp_raw(800, 600, histName);     
 
 					// Displays histograms using the custom display objects
-					histogramGraphRgb.display_graph(disp_raw, 3,1,"VALUES",0,255,"COUNT PER BIN",0,histogramGraphRgb.max(),true);
-					
+					histogramGraphRgb.display_graph(disp_raw, 3,1,"VALUES",0,255,"COUNT PER BIN",0,histogramGraphRgb.max(),true);					
 				}
-
 			}
 		}
 
@@ -360,6 +339,7 @@ int main(int argc, char **argv) {
 						kernelCom.setArg(0, *rgbBuffers[i]);		
 						kernelCom.setArg(1, *rgbBuffersCom[i]);
 						queue.enqueueNDRangeKernel(kernelCom, cl::NullRange, cl::NDRange(bin_number), cl::NDRange(bin_number),nullptr);
+						queue.enqueueReadBuffer(*rgbBuffersCom[i], CL_TRUE, 0, buffer_Size, &histogramComRgb[i].data()[0], nullptr);
 					}
 					else if(kernelType=="blelloch"){
 						std::cout<<"Blelloch"<<endl;
@@ -367,152 +347,162 @@ int main(int argc, char **argv) {
 						cl::Kernel kernelCom = cl::Kernel(program, "scan_bl");
 						kernelCom.setArg(0, *rgbBuffers[i]);
 						queue.enqueueNDRangeKernel(kernelCom, cl::NullRange, cl::NDRange(bin_number), cl::NDRange(bin_number),nullptr);
+						queue.enqueueReadBuffer(*rgbBuffers[i], CL_TRUE, 0, buffer_Size, &histogramComRgb[i].data()[0], nullptr);
 					}
 					else{
 						std::cout<<"Invalid input. Please enter either Scan or Blelloch"<<endl;
 					}
 				}
-
-				queue.enqueueReadBuffer(dev_histRcom, CL_TRUE, 0, buffer_Size, &histogramComR.data()[0],nullptr);
-				queue.enqueueReadBuffer(dev_histGcom, CL_TRUE, 0, buffer_Size, &histogramComG.data()[0],nullptr);
-				queue.enqueueReadBuffer(dev_histBcom, CL_TRUE, 0, buffer_Size, &histogramComB.data()[0],nullptr);
-
-			}
-			
+			}			
 		}
 
 		if(spectrum==1){
 
-		int maximumValue = histogramCom[bin_number - 1];
-		float maximumBinValue = static_cast<float>(maximumValue);
+			int maximumValue = histogramCom[bin_number - 1];
+			float maximumBinValue = static_cast<float>(maximumValue);
 
-		// Convert intermediate results to floats for normalization
-		vector<float> histogramComFloat(bin_number, 0.0f); // New float vector
-		for (int i = 0; i < bin_number; ++i) {
-			histogramComFloat[i] = static_cast<float>(histogramCom[i]); // Convert int to float
-		}
+			// Convert intermediate results to floats for normalization
+			vector<float> histogramComFloat(bin_number, 0.0f); // New float vector
+			for (int i = 0; i < bin_number; ++i) {
+				histogramComFloat[i] = static_cast<float>(histogramCom[i]); // Convert int to float
+			}
 
-		// This finishes the time count and calculates the difference between the 2 registered timestamps so we get the total duration of the events.
-		auto ending = chrono::high_resolution_clock::now();
-		auto total = chrono::duration<double,milli>(ending-beginning).count() ;
+			// This finishes the time count and calculates the difference between the 2 registered timestamps so we get the total duration of the events.
+			auto ending = chrono::high_resolution_clock::now();
+			auto total = chrono::duration<double,milli>(ending-beginning).count() ;
 
-		queue.enqueueWriteBuffer(dev_histNormal, CL_TRUE, 0, buffer_Size_float, &histogramComFloat.data()[0],nullptr);
+			queue.enqueueWriteBuffer(dev_histNormal, CL_TRUE, 0, buffer_Size_float, &histogramComFloat.data()[0],nullptr);
 
-		cl::Kernel histNormal = cl::Kernel(program, "hist_normal");
-		histNormal.setArg(0, dev_histNormal);	
-		histNormal.setArg(1, maximumBinValue);		
-	
-		queue.enqueueNDRangeKernel(histNormal, cl::NullRange, cl::NDRange(bin_number), cl::NullRange,nullptr);
-		queue.enqueueReadBuffer(dev_histNormal, CL_TRUE, 0, buffer_Size_float, &histogramComFloat.data()[0],nullptr);		
-
-		cl::Kernel proj = cl::Kernel(program, "back_projector");
-		proj.setArg(0, dev_image_input);	
-		proj.setArg(1, dev_image_output);	
-		proj.setArg(2, dev_histNormal);	
-	
-		queue.enqueueNDRangeKernel(proj, cl::NullRange, cl::NDRange(image_input.size()), cl::NullRange,nullptr);
-
-		vector<unsigned char> output_buffer(image_input.size());
-		queue.enqueueReadBuffer(dev_image_output, CL_TRUE, 0, output_buffer.size(), &output_buffer.data()[0]);
-
-
-		std::cout<<"Total time to run program:"<< total <<" milliseconds"<< endl;
-
-		CImg<int> histogramGraph(bin_number, 1, 1, 1, 0); // Create a 1D CImg object for the raw histogram
-		for (int i = 0; i < bin_number; ++i) {
-			// int maxValue = *max_element(histogram.begin(), histogram.end());
-			histogramGraph(i) =histogram[i];//maxValue; // Copy raw histogram values
-		}
-
-		CImg<float> histogramGraphCom(bin_number, 1, 1, 1, 0); // Create a 1D CImg object for the raw histogram
-		for (int i = 0; i < bin_number; ++i) {
-			histogramGraphCom(i) = histogramComFloat[i]; // Copy raw histogram values
-		}
-		
-		// Sets histogram window size
-		CImgDisplay disp_raw(800, 600, "Raw Histogram");     
-		CImgDisplay disp_com(800, 600, "Cumulative Histogram");
-
-		// Display histograms using the custom display objects
-		histogramGraph.display_graph(disp_raw, 3,1,"VALUES",0,255,"COUNT PER BIN",0,histogramGraph.max(),true);
-		histogramGraphCom.display_graph(disp_com, 3,1,"VALUES",0,255,"COUNT PER BIN",0,histogramGraphCom.max(),true);	
-
-
-		CImg<unsigned char> output_image(output_buffer.data(), image_input.width(), image_input.height(), image_input.depth(), image_input.spectrum());
-		string output_name = "output_image.pgm";
-		output_image.save("output_image.pgm");
-		picture_output(output_name);
-	}else{
-
-		cl::Buffer dev_histNormalR(context, CL_MEM_READ_WRITE, buffer_Size_float);
-		cl::Buffer dev_histNormalG(context, CL_MEM_READ_WRITE, buffer_Size_float);
-		cl::Buffer dev_histNormalB(context, CL_MEM_READ_WRITE, buffer_Size_float);
-
-		vector<cl::Buffer*> rgbBuffersComNorm = {&dev_histNormalR, &dev_histNormalG, &dev_histNormalB};
-
-		// Convert intermediate results to floats for normalization
-		vector<float> histogramComFloatR(bin_number, 0.0f); // New float vector
-		vector<float> histogramComFloatG(bin_number, 0.0f); // New float vector
-		vector<float> histogramComFloatB(bin_number, 0.0f); // New float vector
-		vector <vector<float>*> histogramComRgbFloat = {&histogramComFloatR,&histogramComFloatG,&histogramComFloatB};
-		float maximumValue;
-		float maximumBinValue;
-
-		for(int i=0;i<histogramComRgb.size();i++){
-			
-			for (int j = 0; j < bin_number; ++j) 
-			(*histogramComRgbFloat[i])[j] = static_cast<float>(histogramComRgb[i][j]); // Convert int to float
-		}							
-
-		for(int i=0;i<histogramComRgb.size();i++){	
-			maximumValue = histogramComRgb[i][bin_number-1];
-			std::cout<<maximumValue<<endl;
-			maximumValue = static_cast<float>(maximumValue);
-			std::cout<<maximumValue<<endl;
-
-			queue.enqueueWriteBuffer(*rgbBuffersComNorm[i], CL_TRUE, 0, buffer_Size_float, &(*histogramComRgbFloat[i]).data()[0],nullptr);
 			cl::Kernel histNormal = cl::Kernel(program, "hist_normal");
-			histNormal.setArg(0, *rgbBuffersComNorm[i]);	
-			histNormal.setArg(1, maximumValue);		
+			histNormal.setArg(0, dev_histNormal);	
+			histNormal.setArg(1, maximumBinValue);		
 		
 			queue.enqueueNDRangeKernel(histNormal, cl::NullRange, cl::NDRange(bin_number), cl::NullRange,nullptr);
-			queue.enqueueReadBuffer(*rgbBuffersComNorm[i], CL_TRUE, 0, buffer_Size_float, &(*histogramComRgbFloat[i]).data()[0],nullptr);		
-			
-			// //  display_graph call
-			// histogramGraph.display_graph("Histogram", 3,1,"VALUES",0,255,"COUNT PER BIN",0,histogramGraph.max(),true);	
-			// histogramGraphCom.display_graph("Histogram", 3,1,"VALUES",0,255,"COUNT PER BIN",0,histogramGraphCom.max(),true);	
+			queue.enqueueReadBuffer(dev_histNormal, CL_TRUE, 0, buffer_Size_float, &histogramComFloat.data()[0],nullptr);		
 
-			// CImg<float> histogramGraph(bin_number, 1, 1, 1, 0); // Create a 1D CImg object for the raw histogram
-			// for (int i = 0; i < bin_number; ++i) {
-			// 	// int maxValue = *max_element(histogram.begin(), histogram.end());
-			// 	histogramGraph(i) = static_cast<float>(histogram[i]);//maxValue; // Copy raw histogram values
-			// }
+			cl::Kernel proj = cl::Kernel(program, "back_projector");
+			proj.setArg(0, dev_image_input);	
+			proj.setArg(1, dev_image_output);	
+			proj.setArg(2, dev_histNormal);	
+		
+			queue.enqueueNDRangeKernel(proj, cl::NullRange, cl::NDRange(image_size), cl::NullRange,nullptr);
+
+			vector<unsigned char> output_buffer(image_size);
+			queue.enqueueReadBuffer(dev_image_output, CL_TRUE, 0, output_buffer.size(), &output_buffer.data()[0]);
+
+
+			std::cout<<"Total time to run program:"<< total <<" milliseconds"<< endl;
+
+			CImg<int> histogramGraph(bin_number, 1, 1, 1, 0); // Create a 1D CImg object for the raw histogram
+			for (int i = 0; i < bin_number; ++i) {
+				// int maxValue = *max_element(histogram.begin(), histogram.end());
+				histogramGraph(i) =histogram[i];//maxValue; // Copy raw histogram values
+			}
 
 			CImg<float> histogramGraphCom(bin_number, 1, 1, 1, 0); // Create a 1D CImg object for the raw histogram
-			for (int j = 0; j < bin_number; ++j) {
-				histogramGraphCom(j) = (*histogramComRgbFloat[i])[j]; // Copy raw histogram values
-				// std::cout<< (*histogramComRgbFloat[i])[j]<<endl;
+			for (int i = 0; i < bin_number; ++i) {
+				histogramGraphCom(i) = histogramComFloat[i]; // Copy raw histogram values
 			}
 			
-			// // Sets histogram window size
-			// CImgDisplay disp_raw(800, 600, "Raw Histogram");     
+			// Sets histogram window size
+			CImgDisplay disp_raw(800, 600, "Raw Histogram");     
 			CImgDisplay disp_com(800, 600, "Cumulative Histogram");
 
-			// // Display histograms using the custom display objects
-			// histogramGraph.display_graph(disp_raw, 3,1,"VALUES",0,255,"COUNT PER BIN",0,histogramGraph.max(),true);
+			// Display histograms using the custom display objects
+			histogramGraph.display_graph(disp_raw, 3,1,"VALUES",0,255,"COUNT PER BIN",0,histogramGraph.max(),true);
 			histogramGraphCom.display_graph(disp_com, 3,1,"VALUES",0,255,"COUNT PER BIN",0,histogramGraphCom.max(),true);	
 
+
+			CImg<unsigned char> output_image(output_buffer.data(), width, height, image_input.depth(), spectrum);
+			string output_name = "output_image.pgm";
+			output_image.save("output_image.pgm");
+			picture_output(output_name);
+		}else{
+
+			cl::Buffer dev_histNormalR(context, CL_MEM_READ_WRITE, buffer_Size_float);
+			cl::Buffer dev_histNormalG(context, CL_MEM_READ_WRITE, buffer_Size_float);
+			cl::Buffer dev_histNormalB(context, CL_MEM_READ_WRITE, buffer_Size_float);
+
+			vector<cl::Buffer*> rgbBuffersComNorm = {&dev_histNormalR, &dev_histNormalG, &dev_histNormalB};
+
+			// Convert intermediate results to floats for normalization
+			vector<float> histogramComFloatR(bin_number, 0.0f); // New float vector
+			vector<float> histogramComFloatG(bin_number, 0.0f); // New float vector
+			vector<float> histogramComFloatB(bin_number, 0.0f); // New float vector
+			vector <vector<float>*> histogramComRgbFloat = {&histogramComFloatR,&histogramComFloatG,&histogramComFloatB};
+			vector<unsigned char> output_buffer(image_size);
+
+			float maximumValue;
+
+			for(int i=0;i<histogramComRgb.size();i++){
+				
+				for (int j = 0; j < bin_number; ++j) 
+				(*histogramComRgbFloat[i])[j] = static_cast<float>(histogramComRgb[i][j]); // Convert int to float
+			}							
+
+			for(int i=0;i<histogramComRgb.size();i++){	
+				maximumValue = histogramComRgb[i][bin_number-1];
+				maximumValue = static_cast<float>(maximumValue);
+
+				queue.enqueueWriteBuffer(*rgbBuffersComNorm[i], CL_TRUE, 0, buffer_Size_float, &(*histogramComRgbFloat[i]).data()[0],nullptr);
+
+				cl::Kernel histNormal = cl::Kernel(program, "hist_normal");
+				histNormal.setArg(0, *rgbBuffersComNorm[i]);	
+				histNormal.setArg(1, maximumValue);		
+			
+				queue.enqueueNDRangeKernel(histNormal, cl::NullRange, cl::NDRange(bin_number), cl::NullRange,nullptr);
+				queue.enqueueReadBuffer(*rgbBuffersComNorm[i], CL_TRUE, 0, buffer_Size_float, &(*histogramComRgbFloat[i]).data()[0],nullptr);		
+				
+				// //  display_graph call
+				// histogramGraph.display_graph("Histogram", 3,1,"VALUES",0,255,"COUNT PER BIN",0,histogramGraph.max(),true);	
+				// histogramGraphCom.display_graph("Histogram", 3,1,"VALUES",0,255,"COUNT PER BIN",0,histogramGraphCom.max(),true);	
+
+				// CImg<float> histogramGraph(bin_number, 1, 1, 1, 0); // Create a 1D CImg object for the raw histogram
+				// for (int i = 0; i < bin_number; ++i) {
+				// 	// int maxValue = *max_element(histogram.begin(), histogram.end());
+				// 	histogramGraph(i) = static_cast<float>(histogram[i]);//maxValue; // Copy raw histogram values
+				// }
+
+				CImg<float> histogramGraphCom(bin_number, 1, 1, 1, 0); // Create a 1D CImg object for the raw histogram
+				for (int j = 0; j < bin_number; ++j) {
+					histogramGraphCom(j) = (*histogramComRgbFloat[i])[j]; // Copy raw histogram values
+					// std::cout<< (*histogramComRgbFloat[i])[j]<<endl;
+				}
+				
+				// // Sets histogram window size
+				// CImgDisplay disp_raw(800, 600, "Raw Histogram");     
+				CImgDisplay disp_com(800, 600, "Cumulative Histogram");
+
+				// // Display histograms using the custom display objects
+				// histogramGraph.display_graph(disp_raw, 3,1,"VALUES",0,255,"COUNT PER BIN",0,histogramGraph.max(),true);
+				histogramGraphCom.display_graph(disp_com, 3,1,"VALUES",0,255,"COUNT PER BIN",0,histogramGraphCom.max(),true);					
+
+			}
+
+			cl::Kernel proj = cl::Kernel(program, "back_projectorRgb");
+				proj.setArg(0, dev_image_input);	
+				proj.setArg(1, dev_image_output);	
+				proj.setArg(2, *rgbBuffersComNorm[0]);
+				proj.setArg(3, *rgbBuffersComNorm[1]);
+				proj.setArg(4, *rgbBuffersComNorm[2]);	
+			
+				queue.enqueueNDRangeKernel(proj, cl::NullRange, cl::NDRange(rgbImageSize), cl::NullRange,nullptr);
+
+				queue.enqueueReadBuffer(dev_image_output, CL_TRUE, 0, output_buffer.size(), &output_buffer.data()[0]);
+
+			CImg<unsigned char> output_image(output_buffer.data(), width, height, image_input.depth(), spectrum);
+			string output_name = "output_image.ppm";
+			output_image.save("output_image.ppm");
+
+			picture_output(output_name);
+
+			// This finishes the time count and calculates the difference between the 2 registered timestamps so we get the total duration of the events.
+			auto ending = chrono::high_resolution_clock::now();
+			auto total = chrono::duration<double,milli>(ending-beginning).count() ;
+
+			std::cout<<"Total time to run program:"<< total <<" milliseconds"<< endl;
+
 		}
-
-		// This finishes the time count and calculates the difference between the 2 registered timestamps so we get the total duration of the events.
-		auto ending = chrono::high_resolution_clock::now();
-		auto total = chrono::duration<double,milli>(ending-beginning).count() ;
-
-		std::cout<<"Total time to run program:"<< total <<" milliseconds"<< endl;
-
-
-
-	}
 
 	}
 	catch (const cl::Error& err) {
