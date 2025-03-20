@@ -105,6 +105,8 @@ int main(int argc, char **argv) {
 		CImg<unsigned char> image_input(image_filename.c_str());
 		CImg<unsigned short> img16(image_filename.c_str());
 		unsigned short max = img16.max();
+
+		bool is16Bit = false;
 	
 		if (max <= 255) {
 			CImg<unsigned char> image_input(image_filename.c_str());
@@ -114,6 +116,7 @@ int main(int argc, char **argv) {
 		} else {
 			std::cout << "16-bit image detected." << std::endl;
 			input16(image_filename); 
+			is16Bit = true;
 		}
 		
 		//Part 3 - host operations
@@ -153,6 +156,9 @@ int main(int argc, char **argv) {
 		int depth = image_input.depth();
 		int rgbImageSize = width*height; 
 		int bin_number = 256;
+		if(is16Bit){
+			bin_number = 65536;
+		}
 		const size_t localWorkSize = 256;
 
 		size_t globalWorkSize = ((image_size + bin_number - 1) / bin_number) * bin_number;
@@ -177,16 +183,14 @@ int main(int argc, char **argv) {
 
 		//4.1 Copy images to device memory
 		
-		cl::Event imageBuffer;
-		queue.enqueueWriteBuffer(dev_image_input, CL_TRUE, 0, image_size, &image_input.data()[0],nullptr, &imageBuffer);
-		queue.enqueueWriteBuffer(dev_image_output, CL_TRUE, 0, image_size, &image_input.data()[0],nullptr, &imageBuffer);
-
-		imageBuffer.wait();
-		cl_ulong ibEnd = imageBuffer.getProfilingInfo<CL_PROFILING_COMMAND_END>();
-		cl_ulong ibStart = imageBuffer.getProfilingInfo<CL_PROFILING_COMMAND_START>();
-
-		double imageBufferTime = static_cast<double>(ibEnd - ibStart) / 1e6;
-		std::cout<<"Image Buffer write duration:"<< imageBufferTime <<" milliseconds"<< endl;
+		if(!is16Bit){
+			queue.enqueueWriteBuffer(dev_image_input, CL_TRUE, 0, image_size, &image_input.data()[0]);
+			queue.enqueueWriteBuffer(dev_image_output, CL_TRUE, 0, image_size, &image_input.data()[0]);
+		}else{
+			queue.enqueueWriteBuffer(dev_image_input, CL_TRUE, 0, image_size, &img16.data()[0]);
+			queue.enqueueWriteBuffer(dev_image_output, CL_TRUE, 0, image_size, &img16.data()[0]);
+		}
+	
 		
 
 		//4.2 Setup and execute the kernel (i.e. device code)
