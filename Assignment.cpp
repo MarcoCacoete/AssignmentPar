@@ -22,8 +22,9 @@ CImg<unsigned char> picture_output(const std::string& image_filename){
 		window_width = image_input.width()/3;  
 		window_height = image_input.height()/3; 
 	}	
+	const char* image_name = image_filename.c_str();
 	
-	CImgDisplay disp_input(window_width, window_height, "input", 0);
+	CImgDisplay disp_input(window_width, window_height, image_name, 0);
 
 	disp_input.display(image_input);
 
@@ -34,6 +35,35 @@ CImg<unsigned char> picture_output(const std::string& image_filename){
 	}
 	return image_input;
 
+}
+
+void input16(const std::string& image_filename) {
+    // Load the 16-bit image
+    CImg<unsigned short> img16(image_filename.c_str());
+
+    // Calculate image dimensions
+    int pic_width = img16.width();
+    int window_width = img16.width();
+    int window_height = img16.height();
+
+    // Adjust window size if the image is too large
+    if (pic_width > 1080) {
+        window_width = img16.width() / 3;
+        window_height = img16.height() / 3;
+    }
+
+    // Normalize the 16-bit image to 8-bit for display
+    CImg<unsigned char> img8 = img16.get_normalize(0, 255);
+
+    // Display the normalized image
+    CImgDisplay disp_input(window_width, window_height, "input (16-bit normalized)", 0);
+    disp_input.display(img8);
+    disp_input.resize(window_width, window_height);
+
+    // Wait for the display window to close
+    while (!disp_input.is_closed()) {
+        disp_input.wait();
+    }
 }
 
 void print_help() {
@@ -72,8 +102,19 @@ int main(int argc, char **argv) {
 
 	//detect any potential exceptions
 	try {
-		CImg<unsigned char> image_input = picture_output(image_filename);
-
+		CImg<unsigned char> image_input(image_filename.c_str());
+		CImg<unsigned short> img16(image_filename.c_str());
+		unsigned short max = img16.max();
+	
+		if (max <= 255) {
+			CImg<unsigned char> image_input(image_filename.c_str());
+			std::cout << "8-bit image detected." << std::endl;
+			picture_output(image_filename); 
+	
+		} else {
+			std::cout << "16-bit image detected." << std::endl;
+			input16(image_filename); 
+		}
 		
 		//Part 3 - host operations
 		//3.1 Select computing devices
@@ -109,6 +150,7 @@ int main(int argc, char **argv) {
 		int width = image_input.width();
 		int height = image_input.height();		
 		int spectrum = image_input.spectrum();
+		int depth = image_input.depth();
 		int rgbImageSize = width*height; 
 		int bin_number = 256;
 		const size_t localWorkSize = 256;
@@ -119,6 +161,8 @@ int main(int argc, char **argv) {
 
 		cl::Buffer dev_image_input(context, CL_MEM_READ_ONLY, image_size);
 		cl::Buffer dev_image_output(context, CL_MEM_READ_WRITE, image_size); //should be the same as input image
+
+		
 		cl::Buffer dev_intensityHistogram(context, CL_MEM_READ_WRITE, buffer_Size);
 		cl::Buffer dev_comHistogram(context, CL_MEM_READ_WRITE, buffer_Size); 
 		cl::Buffer dev_histNormal(context, CL_MEM_READ_WRITE, buffer_Size_float);
@@ -413,7 +457,7 @@ int main(int argc, char **argv) {
 			histogramGraphCom.display_graph(disp_com, 3,1,"VALUES",0,255,"COUNT PER BIN",0,histogramGraphCom.max(),true);	
 
 
-			CImg<unsigned char> output_image(output_buffer.data(), width, height, image_input.depth(), spectrum);
+			CImg<unsigned char> output_image(output_buffer.data(), width, height, depth, spectrum);
 			string output_name = "output_image.pgm";
 			output_image.save("output_image.pgm");
 			picture_output(output_name);
@@ -490,7 +534,7 @@ int main(int argc, char **argv) {
 
 				queue.enqueueReadBuffer(dev_image_output, CL_TRUE, 0, output_buffer.size(), &output_buffer.data()[0]);
 
-			CImg<unsigned char> output_image(output_buffer.data(), width, height, image_input.depth(), spectrum);
+			CImg<unsigned char> output_image(output_buffer.data(), width, height, depth, spectrum);
 			string output_name = "output_image.ppm";
 			output_image.save("output_image.ppm");
 
