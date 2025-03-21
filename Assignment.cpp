@@ -149,6 +149,7 @@ int main(int argc, char **argv) {
 		if(is16Bit){
 			binNumber = 65536;
 		}
+		
 		const size_t localWorkSize = 256; // Local worksize not real information on how to pick a good size.
 
 		std::cout<<"Width:"<<width<<endl; //Some prints of image metadata.
@@ -171,7 +172,10 @@ int main(int argc, char **argv) {
 		cl::Buffer dev_histB(context, CL_MEM_READ_WRITE, buffer_Size);
 		cl::Buffer dev_histRcom(context, CL_MEM_READ_WRITE, buffer_Size);
 		cl::Buffer dev_histGcom(context, CL_MEM_READ_WRITE, buffer_Size);
-		cl::Buffer dev_histBcom(context, CL_MEM_READ_WRITE, buffer_Size);		
+		cl::Buffer dev_histBcom(context, CL_MEM_READ_WRITE, buffer_Size);
+		cl::Buffer dev_histGrey	(context, CL_MEM_READ_WRITE, buffer_Size);
+		cl::Buffer dev_histGreyCom	(context, CL_MEM_READ_WRITE, buffer_Size);
+
 
 		//4.1 Copy images to device memory
 		
@@ -192,7 +196,7 @@ int main(int argc, char **argv) {
 		
 		while(!check){ // While not check used to make sure user inputs correct options.
 
-			if(spectrum==1){ // Spectrum 1 matches greyscale.
+			if(spectrum==1 && !is16Bit){ // Spectrum 1 matches greyscale.
 				std::cout<<"What histogram kernel would you like to use. Local or Atom?"<<endl; // Input choice for kernel for histogram.
 				string kernelType;
 				cin>>kernelType;
@@ -205,8 +209,7 @@ int main(int argc, char **argv) {
 					cl::Kernel kernelAtom = cl::Kernel(program, "hist_atom"); // Kernel argument setup.
 					kernelAtom.setArg(0, dev_image_input);
 					kernelAtom.setArg(1, dev_intensityHistogram);
-					kernelAtom.setArg(2, cl::Local(buffer_Size)); // Local memory for 256 bins
-					kernelAtom.setArg(3, imageDimensions);
+					
 					// Enqueued with global and local work size for local memory work, for efficiency.
 					queue.enqueueNDRangeKernel(kernelAtom, cl::NullRange, cl::NDRange(globalWorkSize), cl::NDRange(localWorkSize),nullptr);
 				}
@@ -225,6 +228,37 @@ int main(int argc, char **argv) {
 				else{
 					std::cout<<"Invalid input. Please enter either Atom or Local"<<endl;
 				}
+			}
+			else if(spectrum == 1 && is16Bit){
+				check=true;				
+
+				std::cout<<"16 bit greyscale image detected."<<endl; // Same repeated steps as above but for RGB 16bit.
+				binNumber = 1024; // Necessary due to the astronomical number of pixel values for 16bit.
+				buffer_Size = binNumber * sizeof(int); // Update buffer size to match 1024 bins
+
+				vector <int> hist16Grey (binNumber,0);			
+				queue.enqueueWriteBuffer(dev_histGrey, CL_TRUE, 0, buffer_Size, hist16Grey.data());		
+
+				cl::Kernel kernel(program, "hist_greyscale_16bit");
+                kernel.setArg(0, dev_image_input);
+                kernel.setArg(1, dev_histGrey);                
+                kernel.setArg(2, imageDimensions);
+				kernel.setArg(3,binNumber);
+				
+                queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(imageDimensions), cl::NDRange(localWorkSize), nullptr);
+
+				queue.enqueueReadBuffer(dev_histGrey, CL_TRUE, 0, buffer_Size, hist16Grey.data());	
+
+				CImg<int> histogramGraph(binNumber, 1, 1, 1, 0); // Creates a 1D CImg object for the raw histogram
+				for (int i = 0; i < binNumber; ++i) {
+					// int maxValue = *max_element(histogram.begin(), histogram.end());
+					histogramGraph(i) =hist16Grey[i]; // Copies raw histogram values
+				}			
+				// Sets histogram window size
+				CImgDisplay disp_raw(800, 600, "Raw Histogram");     
+
+				// Display histograms using the custom display objects for greyscale images.
+				histogramGraph.display_graph(disp_raw, 3, 1, "VALUES", 0, binNumber, "COUNT PER BIN", 0, histogramGraph.max(), false);
 			}else if(!is16Bit){ // The 16bit and 8bitrgb pictures have their oown different kernels
 
 				check=true;				
@@ -251,12 +285,12 @@ int main(int argc, char **argv) {
 				queue.enqueueReadBuffer(dev_histG, CL_TRUE, 0, buffer_Size, &histG.data()[0],nullptr);
 				queue.enqueueReadBuffer(dev_histB, CL_TRUE, 0, buffer_Size, &histB.data()[0],nullptr);
 
-				vector <vector<int>> histRgb = {histR,histG,histB}; //Vector of the hists to iterate for outputs.
+				vector <vector<int>*> histRgb = {&histR,&histG,&histB}; //Vector of the hists to iterate for outputs.
 
 				for (int i = 0; i < histRgb.size(); i++) { //Creates cimg object for histograms.
 					CImg<float> histogramGraphRgb(binNumber, 1, 1, 1, 0);
 					for (int j = 0; j < binNumber; ++j) {
-						histogramGraphRgb(j) = static_cast<float>(histRgb[i][j]); 
+						histogramGraphRgb(j) = static_cast<float>((*histRgb[i])[j]); 
 					}
 					const char* histName;
 
@@ -308,15 +342,15 @@ int main(int argc, char **argv) {
 				queue.enqueueReadBuffer(dev_histG, CL_TRUE, 0, buffer_Size, histG.data());
 				queue.enqueueReadBuffer(dev_histB, CL_TRUE, 0, buffer_Size, histB.data());
 
-				vector <vector<int>> histRgb = {histR,histG,histB};
+				vector <vector<int>*> histRgb = {&histR,&histG,&histB};
 
 				for (int i = 0; i < histRgb.size(); i++) {
 					CImg<float> histogramGraphRgb(binNumber, 1, 1, 1, 0);
 				
-					int maxBinCount = *max_element(histRgb[i].begin(), histRgb[i].end());
+					int maxBinCount = *max_element((*histRgb[i]).begin(), (*histRgb[i]).end());
 				
 					for (int j = 0; j < binNumber; ++j) {
-						histogramGraphRgb(j) = static_cast<float>(histRgb[i][j]) / maxBinCount; // This displays the histogram normalised.
+						histogramGraphRgb(j) = static_cast<float>((*histRgb[i])[j]) / maxBinCount; // This displays the histogram normalised.
 					}
 				
 					const char* histName;
@@ -346,14 +380,7 @@ int main(int argc, char **argv) {
 		queue.enqueueReadBuffer(dev_intensityHistogram, CL_TRUE, 0, buffer_Size, &histogram.data()[0],nullptr);
 
 		int maxValue = *max_element(histogram.begin(), histogram.end()); // Defines max value for normalisation logic.	 		
-		int jobCount=0;
-
-		for (int i=0; i<histogram.size();i++){ // Outputs job count , was used to debug.
-			// std::cout<<histogram[i]<<endl;
-			jobCount+= histogram[i];
-		}		
-		std::cout<<"Jobcount:"<<jobCount<<endl;
-
+		
 		vector<int> histogramCom (binNumber,0); //Defines comulative histogram and buffer.
 		queue.enqueueWriteBuffer(dev_comHistogram, CL_TRUE, 0, buffer_Size, &histogram.data()[0],nullptr);
 
@@ -377,7 +404,7 @@ int main(int argc, char **argv) {
 			std::transform(kernelType.begin(),kernelType.end(),kernelType.begin(),::tolower);
 
 			//Choices between the hillis adapted kernel and Blelloch from workshops.
-			if(spectrum==1){
+			if(spectrum==1 && !is16Bit){
 				if (kernelType=="hillis"){
 					std::cout<<"Hillis-Steele"<<endl;
 					check = true;
@@ -424,10 +451,88 @@ int main(int argc, char **argv) {
 						std::cout<<"Invalid input. Please enter either Scan or Blelloch"<<endl;
 					}
 				}
+			}else if(is16Bit &&spectrum ==1 ){		
+
+				size_t buffer_Size = sizeof(int) * binNumber; 
+				if (kernelType=="hillis"){
+					std::cout<<"Hillis-Steele"<<endl;
+					check = true;
+					cl::Kernel kernelCom = cl::Kernel(program, "com_hist");
+					kernelCom.setArg(0, dev_histGrey);		
+					kernelCom.setArg(1, dev_histGreyCom);
+					queue.enqueueNDRangeKernel(kernelCom, cl::NullRange, cl::NDRange(binNumber), cl::NDRange(binNumber),nullptr);
+					queue.enqueueReadBuffer(dev_histGreyCom, CL_TRUE, 0, buffer_Size, &histogramCom.data()[0], nullptr);
+				}
+				else if(kernelType=="blelloch"){
+					std::cout<<"Blelloch"<<endl;
+					check = true;			
+					cl::Kernel kernelCom = cl::Kernel(program, "scan_bl");
+					kernelCom.setArg(0, dev_histGrey);
+					queue.enqueueNDRangeKernel(kernelCom, cl::NullRange, cl::NDRange(binNumber), cl::NDRange(binNumber),nullptr);
+					queue.enqueueReadBuffer(dev_histGrey, CL_TRUE, 0, buffer_Size, &histogramCom.data()[0], nullptr);
+					
+				}
+				else{
+					std::cout<<"Invalid input. Please enter either Scan or Blelloch"<<endl;
+				}
+
+				int maximumValue = histogramCom[binNumber - 1];
+				float maximumBinValue = static_cast<float>(maximumValue);
+
+				// Converts intermediate results to floats for normalisation
+				vector<float> histogramComFloat(binNumber, 0.0f); // New float vector
+				for (int i = 0; i < binNumber; ++i) {
+					histogramComFloat[i] = static_cast<float>(histogramCom[i]); // Convert int to float
+				}
+
+				buffer_Size_float = binNumber * sizeof(float); 			
+				queue.enqueueWriteBuffer(dev_histNormal, CL_TRUE, 0, buffer_Size_float, &histogramComFloat.data()[0],nullptr);
+
+				cl::Kernel histNormal = cl::Kernel(program, "hist_normal");// Same as all previous kernels. 
+				histNormal.setArg(0, dev_histNormal);	
+				histNormal.setArg(1, maximumBinValue);		
+			
+				queue.enqueueNDRangeKernel(histNormal, cl::NullRange, cl::NDRange(binNumber), cl::NullRange,nullptr);
+				queue.enqueueReadBuffer(dev_histNormal, CL_TRUE, 0, buffer_Size_float, &histogramComFloat.data()[0],nullptr);
+				
+
+				CImg<float> histogramGraphCom(binNumber, 1, 1, 1, 0); // Create a 1D CImg object for the raw histogram
+				for (int  i= 0;  i< binNumber; ++i) {
+					histogramGraphCom(i) = histogramComFloat[i]; // Copy raw histogram values
+				}
+				
+				// // Sets histogram window size		   
+				CImgDisplay disp_com(800, 600, "Cumulative Histogram");
+
+				// // Display histograms using the custom display objects
+				histogramGraphCom.display_graph(disp_com, 3,1,"VALUES",0,255,"COUNT PER BIN",0,histogramGraphCom.max());	
+
+				binNumber = 1024; 
+				size_t buffer_Size_float = binNumber * sizeof(float);
+				float scale = (float)binNumber / 65536.0f; //Scale factor to be used to restore 16bit values for projection.
+
+				std::cout << "imageDimensions: " << imageDimensions << std::endl;
+				std::cout << "image_size: " << image_size << std::endl;
+				std::cout << "Expected byte size: " << imageDimensions * 3 * sizeof(unsigned short) << std::endl; //Debug messages, was having issues with correct buffer sizes.
+
+				cl::Kernel proj(program, "back_projector_grayscale_16bit");
+				proj.setArg(0, dev_image_input);
+				proj.setArg(1, dev_image_output);
+				proj.setArg(2, dev_histNormal);				
+				proj.setArg(3, imageDimensions);
+				proj.setArg(4, scale);
+
+				vector<unsigned short> output_buffer(imageDimensions); // 272640 elements, 2 bytes each
+				queue.enqueueNDRangeKernel(proj, cl::NullRange, cl::NDRange(globalWorkSize), cl::NDRange(localWorkSize));
+				queue.enqueueReadBuffer(dev_image_output, CL_TRUE, 0, imageDimensions * sizeof(unsigned short), output_buffer.data());
+
+				CImg<unsigned short> output_image(output_buffer.data(), width, height, depth, spectrum);
+				string output_name = "output_image_16bitGreyscale.pgm";
+				output_image.save_pnm(output_name.c_str(), 65535); // Saves as 16-bit
+				input16(output_name);
 			}
 			else{
 				for(int i=0;i<rgbBuffers.size();i++){ // Same as before but for 16bit.
-					std::cout<<binNumber;
 					size_t buffer_Size = sizeof(int) * binNumber; // Ensures this matches the buffer size
 					if (kernelType=="hillis"){
 						std::cout<<"Hillis-Steele"<<endl;
@@ -452,11 +557,9 @@ int main(int argc, char **argv) {
 				}
 
 			}			
-			std::cout<<"test"<<endl;
 		}
-
 		// This block is responsible for normalisation and back projection kernel setup and calls.
-		if(spectrum==1){// For Greyscale images.
+		if(spectrum==1 && !is16Bit){// For Greyscale images.
 
 			int maximumValue = histogramCom[binNumber - 1];
 			float maximumBinValue = static_cast<float>(maximumValue);
@@ -475,7 +578,7 @@ int main(int argc, char **argv) {
 		
 			queue.enqueueNDRangeKernel(histNormal, cl::NullRange, cl::NDRange(binNumber), cl::NullRange,nullptr);
 			queue.enqueueReadBuffer(dev_histNormal, CL_TRUE, 0, buffer_Size_float, &histogramComFloat.data()[0],nullptr);		
-
+			
 			cl::Kernel proj = cl::Kernel(program, "back_projector");
 			proj.setArg(0, dev_image_input);	
 			proj.setArg(1, dev_image_output);	
@@ -510,7 +613,7 @@ int main(int argc, char **argv) {
 			string output_name = "output_image.pgm";
 			output_image.save("output_image.pgm");
 			picture_output(output_name);
-		}else{// Same as above but for rgb images.
+		}else if(spectrum==3){// Same as above but for rgb images.
 			
 			if(is16Bit){ 
 				buffer_Size_float= sizeof(float) * 1024;// Different values for 16bit.
