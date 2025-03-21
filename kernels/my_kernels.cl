@@ -1,8 +1,30 @@
-// Histogram using image unsigned character array as input and an int array as output which will hold the intensity values and bin size I picked in host code.
-kernel void hist_atom(global const uchar* inputImage, global int* histogramOutput){
-	int id = get_global_id(0); // Gets work item id
-	int intensityValue = inputImage[id];  // This assigns the intensity value of the pixel that matches the id to a variable.
-	atomic_inc(&histogramOutput[intensityValue]);  // Increments the corresponding bin each time by using the intensity value as the index number.
+
+// // Histogram using image unsigned character array as input and an int array as output which will hold the intensity values and bin size I picked in host code.
+// kernel void hist_atom(global const uchar* inputImage, global int* histogramOutput){
+// 	int id = get_global_id(0); // Gets work item id
+// 	int intensityValue = inputImage[id];  // This assigns the intensity value of the pixel that matches the id to a variable.
+// 	atomic_inc(&histogramOutput[intensityValue]);  // Increments the corresponding bin each time by using the intensity value as the index number.
+// }
+
+// Based on regular atomic histogram we learned in workshops, but with my attempt to implement local memory use for efficiency.
+kernel void hist_atom(global const uchar* inputImage, global int* histogramOutput, local int* hist, int imageDimensions){
+    int id = get_global_id(0); // Global work item ID
+	int localSize = get_local_size(0); // Workgroup size
+    int lid = get_local_id(0); // Local work item ID   
+
+    if(lid < 256){ 	// Each work item initialises part of the local histogram to 0.
+        hist[lid] = 0;
+    }
+	barrier(CLK_LOCAL_MEM_FENCE);//wait for all local threads to finish copying from global to local memory
+
+    if(id < imageDimensions){	 // This is a bounds check, it works with my kernel code global work size padding,  
+        atomic_add(&hist[inputImage[id]],1); //  Atomic add, the 1 is the value being added, like incrementing logic.
+    }
+	barrier(CLK_LOCAL_MEM_FENCE);//wait for all local threads to finish copying from global to local memory
+
+    if(lid < 256){  // This updates the histogram in global memory.
+        atomic_add(&histogramOutput[lid],hist[lid]); // Atomically update the global histogram
+    }
 }
 
 // Code adapted and modified from the workshop materials for tutorial 3, more specifically the reduce_add_4 kernel.
@@ -35,11 +57,10 @@ kernel void hist_local(global const uchar* inputImage, global int* histogramOutp
 	};
 }
 
+// Just a simple normaliser that divides value by max value for histogram. Required step for back projection.
 kernel void hist_normal(global float* comHist,float maxBin){
 	int id = get_global_id(0);
-
-	comHist[id] = (float)comHist[id] / maxBin;
-		
+	comHist[id] = (float)comHist[id] / maxBin;		
 }
 
 //Hillis-Steele basic inclusive scan adapted from workshop materials for tutorial 3
@@ -50,10 +71,9 @@ kernel void com_hist(global int* A, global int* B) {
 
     barrier(CLK_GLOBAL_MEM_FENCE); //sync the step
 
-    for (int stride = 1; stride < N; stride *= 2) {
+    for (int stride = 1; stride < N; stride *= 2) { 
         int memHolder = B[id];
         barrier(CLK_GLOBAL_MEM_FENCE); //sync the step
-
         if (id >= stride)
             memHolder = B[id - stride];            
         barrier(CLK_GLOBAL_MEM_FENCE); //sync the step    
@@ -69,7 +89,6 @@ kernel void scan_bl(global int* A) {
 	int id = get_global_id(0);
 	int N = get_global_size(0);
 	int t;
-
 	//up-sweep
 	for (int stride = 1; stride < N; stride *= 2) {
 		if (((id + 1) % (stride*2)) == 0)
@@ -77,13 +96,11 @@ kernel void scan_bl(global int* A) {
 
 		barrier(CLK_GLOBAL_MEM_FENCE); //sync the step
 	}
-
 	//down-sweep
 	if (id == 0)
 		A[N-1] = 0;//exclusive scan
 
 	barrier(CLK_GLOBAL_MEM_FENCE); //sync the step
-
 	for (int stride = N/2; stride > 0; stride /= 2) {
 		if (((id + 1) % (stride*2)) == 0) {
 			t = A[id];
@@ -97,19 +114,16 @@ kernel void scan_bl(global int* A) {
 
 // Back projection kernel blind attempt at making from scratch.
 kernel void back_projector(global const uchar* inputImage, global  uchar* outputImage, global const float* LUT){
-
 	int id = get_global_id(0);
 	int value = inputImage[id];
-
-	outputImage[id] = LUT[value]*255;
-	
+	outputImage[id] = LUT[value]*255; // Multiplies normalised value by 255 for a balanced result of values.
 } 
 
 // Attempt at an rgb histogram maker kernel.
 kernel void hist_rgb(global const uchar* inputImage, global int* histR,global int* histG,global int* histB, int rgbImageSize){
 	int id = get_global_id(0); // Gets work item id
 	int lid = get_local_id(0);
-	local int localHistR[256];
+	local int localHistR[256]; //Defines local histograms for 256 bins, 1 per colour channel.
 	local int localHistG[256];
 	local int localHistB[256];
 
@@ -119,36 +133,97 @@ kernel void hist_rgb(global const uchar* inputImage, global int* histR,global in
         localHistG[lid] = 0;
         localHistB[lid] = 0;
     }
-	barrier(CLK_LOCAL_MEM_FENCE);
+	barrier(CLK_LOCAL_MEM_FENCE); // syncs the step
 	if (id < rgbImageSize) {
-		int rgbId = id*3;
+		int rgbId = id*3; // Offsets the workitem id by 3 to skip the GB indexes in RGB.
 		int intensityValueR = inputImage[rgbId];  
-		int intensityValueG = inputImage[rgbId+1];  
+		int intensityValueG = inputImage[rgbId+1];  // Assigns values to RGB using offset.
 		int intensityValueB = inputImage[rgbId+2];  
-		atomic_inc(&localHistR[intensityValueR]);  
+		atomic_inc(&localHistR[intensityValueR]);  // Increments atomically local hist.
 		atomic_inc(&localHistG[intensityValueG]); 
 		atomic_inc(&localHistB[intensityValueB]); 
-	}
-	
+	}	
 	barrier(CLK_LOCAL_MEM_FENCE);
-
 	if (lid < 256) {
-        atomic_add(&histR[lid], localHistR[lid]);
+        atomic_add(&histR[lid], localHistR[lid]); // Then updates global histogram.
         atomic_add(&histG[lid], localHistG[lid]);
         atomic_add(&histB[lid], localHistB[lid]);
-    }
+    }	
+}
+// // simpler first version of the hist rgb 16bit kernel, mostly same as atomic histogram but tripled for each channel.
+// kernel void hist_rgb_16bit(global const ushort* inputImage, global int* histR, global int* histG, global int* histB, int rgbImageSize) {
+//     int id = get_global_id(0);
+//     if (id < rgbImageSize) { //bounds check
+//         int rgbId = id * 3; // Places inde at correct offset per work item.
+//         int r = inputImage[rgbId]/64;     // Scaling, original bin sizes make it difficult to work with.
+//         int g = inputImage[rgbId + 1]/64; 
+//         int b = inputImage[rgbId + 2]/64; 
+//         atomic_inc(&histR[r]); // Atomic increments.
+//         atomic_inc(&histG[g]);
+//         atomic_inc(&histB[b]);
+//     }
+// }
 
-	
+// Local memory version of the histogram kernel, it scales the bin number to 1024, 
+// I tried to run all 65k bins but could not output the histograms properly with CImg.
+kernel void hist_rgb_16bit(
+    global const ushort* inputImage, global int* histR, global int* histG, global int* histB,
+    int rgbImageSize, int binSize) {
+
+    // This is the definition of the local histograms, need to use the hard coded value because opencl doesnt allow for dynamic values.
+    local int localHistR[1024];
+    local int localHistG[1024];
+    local int localHistB[1024];
+
+    int localId = get_local_id(0);
+    int globalId = get_global_id(0);
+    int localSize = get_local_size(0);
+
+    for (int i = localId; i < binSize; i += localSize) { // I was having issues with populating all bins so initialised all bins using a stride.
+        localHistR[i] = 0;
+        localHistG[i] = 0;
+        localHistB[i] = 0;
+    }
+	barrier(CLK_LOCAL_MEM_FENCE);//wait for all local threads to finish copying from global to local memory
+
+    if (globalId < rgbImageSize) {  
+        int rgbId = globalId * 3;  // Assigns ID per group of 3 RGB values. Allows skipping to correct index.
+        int r = inputImage[rgbId] / 64;  // Scaling from original values.
+        int g = inputImage[rgbId + 1] / 64; // Assings to RGB using the addition of the offset.
+        int b = inputImage[rgbId + 2] / 64;
+
+        atomic_inc(&localHistR[r]);// Atomic incrementation as before.
+        atomic_inc(&localHistG[g]);
+        atomic_inc(&localHistB[b]);
+    }
+	barrier(CLK_LOCAL_MEM_FENCE);//wait for all local threads to finish copying from global to local memory
+
+    for (int i = localId; i < binSize; i += localSize) { // again using stride, updates global histogram.
+        atomic_add(&histR[i], localHistR[i]);
+        atomic_add(&histG[i], localHistG[i]);
+        atomic_add(&histB[i], localHistB[i]);
+    }
 }
 
 // Back projection kernel blind attempt at making from scratch.
-kernel void back_projectorRgb(global const uchar* inputImage, global  uchar* outputImage, global const float* LUTr,global const float* LUTg,global const float* LUTb){
-
+kernel void back_projectorRgb(global const uchar* inputImage, global  uchar* outputImage, global const float* LUTr,global const float* LUTg,global const float* LUTb,int binNumber){
 	int id = get_global_id(0);
 	int rgbId = id*3;
-	outputImage[rgbId] = LUTr[inputImage[rgbId]]*255;
-	outputImage[rgbId+1] = LUTg[inputImage[rgbId+1]]*255;
-	outputImage[rgbId+2] = LUTb[inputImage[rgbId+2]]*255;
-
-	
+	outputImage[rgbId] = LUTr[inputImage[rgbId]]*binNumber-1; // Similar to the other one changed to dynamic bin number. Also 3 channels.
+	outputImage[rgbId+1] = LUTg[inputImage[rgbId+1]]*binNumber-1;
+	outputImage[rgbId+2] = LUTb[inputImage[rgbId+2]]*binNumber-1;	
 } 
+
+
+kernel void back_projector_rgb_16bit(global const ushort* inputImage,global ushort* outputImage,global const float* lutR,global const float* lutG,global const float* lutB,int rgbImageSize,float scale) 
+{
+	    int id = get_global_id(0);    
+    if (id >= rgbImageSize) return;
+    int rgbId = id * 3;
+    int indexR = (int)(inputImage[rgbId]*scale); // Main difference is the need to scale the values back to create 16bit image.
+    int indexG = (int)(inputImage[rgbId+1]*scale);
+    int indexB = (int)(inputImage[rgbId+2]*scale);
+    outputImage[rgbId] = (ushort)(lutR[indexR]*65535.0f);
+    outputImage[rgbId + 1] = (ushort)(lutG[indexG]*65535.0f);
+    outputImage[rgbId + 2] = (ushort)(lutB[indexB]*65535.0f);
+}
