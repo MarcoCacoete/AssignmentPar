@@ -283,6 +283,8 @@ int main(int argc, char **argv) {
 			
 				std::cout<<"Colour image detected"<<endl; // Same repeated steps as above but for RGB 16bit.
 				binNumber = 1024; // Necessary due to the astronomical number of pixel values for 16bit.
+				buffer_Size = binNumber * sizeof(int); // Update buffer size to match 1024 bins
+
 				vector <int> histR (binNumber,0);
 				vector <int> histG (binNumber,0);
 				vector <int> histB (binNumber,0);						
@@ -290,6 +292,7 @@ int main(int argc, char **argv) {
 				queue.enqueueWriteBuffer(dev_histR, CL_TRUE, 0, buffer_Size, histR.data());
 				queue.enqueueWriteBuffer(dev_histG, CL_TRUE, 0, buffer_Size, histG.data());
 				queue.enqueueWriteBuffer(dev_histB, CL_TRUE, 0, buffer_Size, histB.data());
+				
 
 				cl::Kernel kernel(program, "hist_rgb_16bit");
                 kernel.setArg(0, dev_image_input);
@@ -425,7 +428,7 @@ int main(int argc, char **argv) {
 			else{
 				for(int i=0;i<rgbBuffers.size();i++){ // Same as before but for 16bit.
 					std::cout<<binNumber;
-					size_t buffer_Size = buffer_Size; // Ensures this matches the buffer size
+					size_t buffer_Size = sizeof(int) * binNumber; // Ensures this matches the buffer size
 					if (kernelType=="hillis"){
 						std::cout<<"Hillis-Steele"<<endl;
 						check = true;
@@ -449,6 +452,7 @@ int main(int argc, char **argv) {
 				}
 
 			}			
+			std::cout<<"test"<<endl;
 		}
 
 		// This block is responsible for normalisation and back projection kernel setup and calls.
@@ -591,7 +595,7 @@ int main(int argc, char **argv) {
 			}
 			else{ // Once again same as before but for 16bit.
 				
-				binNumber = 1024; /
+				binNumber = 1024; 
 				size_t buffer_Size_float = binNumber * sizeof(float);
 				float scale = (float)binNumber / 65536.0f; //Scale factor to be used to restore 16bit values for projection.
 
