@@ -169,16 +169,16 @@ int main(int argc, char **argv) {
 		cl::Buffer dev_image_output(context, CL_MEM_READ_WRITE, image_size);
 		// Buffers for pretty much everything else.
 		cl::Buffer dev_intensityHistogram(context, CL_MEM_READ_WRITE, buffer_Size);
-		cl::Buffer dev_comHistogram(context, CL_MEM_READ_WRITE, buffer_Size); 
+		cl::Buffer dev_cumHistogram(context, CL_MEM_READ_WRITE, buffer_Size); 
 		cl::Buffer dev_histNormal(context, CL_MEM_READ_WRITE, buffer_Size_float);
 		cl::Buffer dev_histR(context, CL_MEM_READ_WRITE, buffer_Size);
 		cl::Buffer dev_histG(context, CL_MEM_READ_WRITE, buffer_Size);
 		cl::Buffer dev_histB(context, CL_MEM_READ_WRITE, buffer_Size);
-		cl::Buffer dev_histRcom(context, CL_MEM_READ_WRITE, buffer_Size);
-		cl::Buffer dev_histGcom(context, CL_MEM_READ_WRITE, buffer_Size);
-		cl::Buffer dev_histBcom(context, CL_MEM_READ_WRITE, buffer_Size);
+		cl::Buffer dev_histRcum(context, CL_MEM_READ_WRITE, buffer_Size);
+		cl::Buffer dev_histGcum(context, CL_MEM_READ_WRITE, buffer_Size);
+		cl::Buffer dev_histBcum(context, CL_MEM_READ_WRITE, buffer_Size);
 		cl::Buffer dev_histGrey	(context, CL_MEM_READ_WRITE, buffer_Size);
-		cl::Buffer dev_histGreyCom	(context, CL_MEM_READ_WRITE, buffer_Size);
+		cl::Buffer dev_histGreycum	(context, CL_MEM_READ_WRITE, buffer_Size);
 
 
 		//4.1 Copy images to device memory
@@ -446,34 +446,34 @@ int main(int argc, char **argv) {
 
 		int maxValue = *max_element(histogram.begin(), histogram.end()); // Defines max value for normalisation logic.	 		
 		
-		vector<int> histogramCom (binNumber,0); //Defines comulative histogram and buffer.
-		cl::Event e_comulative_hist_write_buffer;
-		queue.enqueueWriteBuffer(dev_comHistogram, CL_TRUE, 0, buffer_Size, &histogram.data()[0],nullptr,&e_comulative_hist_write_buffer);
-		event_log.push_back({"Comulative histogram write buffer", e_devHist_read_buffer, 0,8});
+		vector<int> histogramcum (binNumber,0); //Defines cumulative histogram and buffer.
+		cl::Event e_cumulative_hist_write_buffer;
+		queue.enqueueWriteBuffer(dev_cumHistogram, CL_TRUE, 0, buffer_Size, &histogram.data()[0],nullptr,&e_cumulative_hist_write_buffer);
+		event_log.push_back({"Cumulative histogram write buffer", e_devHist_read_buffer, 0,8});
 
-		vector<int> histogramComR(binNumber,0);// Same as above but for colour images.
-		vector<int> histogramComG(binNumber,0);
-		vector<int> histogramComB(binNumber,0);
+		vector<int> histogramcumR(binNumber,0);// Same as above but for colour images.
+		vector<int> histogramcumG(binNumber,0);
+		vector<int> histogramcumB(binNumber,0);
 
-		//Comulative write buffers for cumulative histograms RGB
-		cl::Event e_comulative_hist_write_buffer_R;
-		queue.enqueueWriteBuffer(dev_histRcom, CL_TRUE, 0, buffer_Size, &histogramComR.data()[0],nullptr,&e_comulative_hist_write_buffer_R);
-		event_log.push_back({"Comulative histogram write buffer Red", e_comulative_hist_write_buffer_R, 1,16});
-		cl::Event e_comulative_hist_write_buffer_G;
-		queue.enqueueWriteBuffer(dev_histGcom, CL_TRUE, 0, buffer_Size, &histogramComG.data()[0],nullptr,&e_comulative_hist_write_buffer_G);
-		event_log.push_back({"Comulative histogram write buffer Green", e_comulative_hist_write_buffer_G, 1,16});
-		cl::Event e_comulative_hist_write_buffer_B;
-		queue.enqueueWriteBuffer(dev_histBcom, CL_TRUE, 0, buffer_Size, &histogramComB.data()[0],nullptr,&e_comulative_hist_write_buffer_B);
-		event_log.push_back({"Comulative histogram write buffer Blue", e_comulative_hist_write_buffer_B, 1,16});
+		//Cumulative write buffers for cumulative histograms RGB
+		cl::Event e_cumulative_hist_write_buffer_R;
+		queue.enqueueWriteBuffer(dev_histRcum, CL_TRUE, 0, buffer_Size, &histogramcumR.data()[0],nullptr,&e_cumulative_hist_write_buffer_R);
+		event_log.push_back({"Cumulative histogram write buffer Red", e_cumulative_hist_write_buffer_R, 1,16});
+		cl::Event e_cumulative_hist_write_buffer_G;
+		queue.enqueueWriteBuffer(dev_histGcum, CL_TRUE, 0, buffer_Size, &histogramcumG.data()[0],nullptr,&e_cumulative_hist_write_buffer_G);
+		event_log.push_back({"Cumulative histogram write buffer Green", e_cumulative_hist_write_buffer_G, 1,16});
+		cl::Event e_cumulative_hist_write_buffer_B;
+		queue.enqueueWriteBuffer(dev_histBcum, CL_TRUE, 0, buffer_Size, &histogramcumB.data()[0],nullptr,&e_cumulative_hist_write_buffer_B);
+		event_log.push_back({"Cumulative histogram write buffer Blue", e_cumulative_hist_write_buffer_B, 1,16});
 
 		vector<cl::Buffer*> rgbBuffers = {&dev_histR, &dev_histG, &dev_histB}; // Some vectors of pointers for indexing and iteration.
-		vector<cl::Buffer*> rgbBuffersCom = {&dev_histRcom, &dev_histGcom, &dev_histBcom};		
-		vector<vector<int>> histogramComRgb = {histogramComR,histogramComG,histogramComB};
+		vector<cl::Buffer*> rgbBufferscum = {&dev_histRcum, &dev_histGcum, &dev_histBcum};		
+		vector<vector<int>> histogramcumRgb = {histogramcumR,histogramcumG,histogramcumB};
 
 		check = false;
 
-		while(!check){ // Same as above but for comulative histogram kernels.
-			std::cout<<"What comulative histogram kernel would you like to use. Hillis or Blelloch?"<<endl;
+		while(!check){ // Same as above but for cumulative histogram kernels.
+			std::cout<<"What cumulative histogram kernel would you like to use. Hillis or Blelloch?"<<endl;
 			string kernelType;
 			cin>>kernelType;
 			std::transform(kernelType.begin(),kernelType.end(),kernelType.begin(),::tolower);
@@ -483,31 +483,31 @@ int main(int argc, char **argv) {
 				if (kernelType=="hillis"){
 					std::cout<<"Hillis-Steele"<<endl;
 					check = true;
-					cl::Kernel kernelCom = cl::Kernel(program, "com_hist"); // Same as before only differences are the names of the kernels picked.
-					kernelCom.setArg(0, dev_intensityHistogram);		
-					kernelCom.setArg(1, dev_comHistogram);
+					cl::Kernel kernelcum = cl::Kernel(program, "cum_hist"); // Same as before only differences are the names of the kernels picked.
+					kernelcum.setArg(0, dev_intensityHistogram);		
+					kernelcum.setArg(1, dev_cumHistogram);
 
-					// The global work item number is based on bin numbers for the comulative kernels.
-					cl::Event e_hillis_histCom;
-					queue.enqueueNDRangeKernel(kernelCom, cl::NullRange, cl::NDRange(binNumber), cl::NDRange(binNumber),nullptr,&e_hillis_histCom);
-					event_log.push_back({"Hillis comulative histogram", e_hillis_histCom, 0,8});
+					// The global work item number is based on bin numbers for the cumulative kernels.
+					cl::Event e_hillis_histcum;
+					queue.enqueueNDRangeKernel(kernelcum, cl::NullRange, cl::NDRange(binNumber), cl::NDRange(binNumber),nullptr,&e_hillis_histcum);
+					event_log.push_back({"Hillis cumulative histogram", e_hillis_histcum, 0,8});
 
 				}
 				else if(kernelType=="blelloch"){
 					std::cout<<"Blelloch"<<endl;
 					check = true;			
-					cl::Kernel kernelCom = cl::Kernel(program, "scan_bl");
-					kernelCom.setArg(0, dev_comHistogram);
-					cl::Event e_Blelloch_histCom;
-					queue.enqueueNDRangeKernel(kernelCom, cl::NullRange, cl::NDRange(binNumber), cl::NDRange(binNumber),nullptr,&e_Blelloch_histCom);
-					event_log.push_back({"Blelloch comulative histogram", e_Blelloch_histCom, 0,8});
+					cl::Kernel kernelcum = cl::Kernel(program, "scan_bl");
+					kernelcum.setArg(0, dev_cumHistogram);
+					cl::Event e_Blelloch_histcum;
+					queue.enqueueNDRangeKernel(kernelcum, cl::NullRange, cl::NDRange(binNumber), cl::NDRange(binNumber),nullptr,&e_Blelloch_histcum);
+					event_log.push_back({"Blelloch cumulative histogram", e_Blelloch_histcum, 0,8});
 				}
 				else{
 					std::cout<<"Invalid input. Please enter either Scan or Blelloch"<<endl;
 				}
-				cl::Event e_ComHistReadBuffer;
-				queue.enqueueReadBuffer(dev_comHistogram, CL_TRUE, 0, buffer_Size, &histogramCom.data()[0],nullptr,&e_ComHistReadBuffer);
-				event_log.push_back({"Cumulative histogram read buffer", e_ComHistReadBuffer, 0,8});
+				cl::Event e_cumHistReadBuffer;
+				queue.enqueueReadBuffer(dev_cumHistogram, CL_TRUE, 0, buffer_Size, &histogramcum.data()[0],nullptr,&e_cumHistReadBuffer);
+				event_log.push_back({"Cumulative histogram read buffer", e_cumHistReadBuffer, 0,8});
 				// Cimg output of histograms
 				CImg<int> histogramGraph(binNumber, 1, 1, 1, 0); // Creates a 1D CImg object for the raw histogram
 				for (int i = 0; i < binNumber; ++i) {
@@ -517,12 +517,12 @@ int main(int argc, char **argv) {
 					// Sets histogram window size
 				CImgDisplay disp_raw(800, 600, "Raw Histogram");     
 				histogramGraph.display_graph(disp_raw, 3,1,"VALUES",0,255,"COUNT PER BIN",0,histogramGraph.max(),true); 
-				CImg<int> histogramGraphComUnnorm(binNumber, 1, 1, 1, 0); //Creates cimg object using data from histogram vector.
+				CImg<int> histogramGraphcumUnnorm(binNumber, 1, 1, 1, 0); //Creates cimg object using data from histogram vector.
 				for (int i = 0; i < binNumber; ++i) {
-					histogramGraphComUnnorm(i) = histogramCom[i];
+					histogramGraphcumUnnorm(i) = histogramcum[i];
 				}
-				CImgDisplay disp_com_unnorm(800, 600, "Unnormalised Cumulative Histogram (8-bit Greyscale)"); // Labels and sets window size. And bar type graph value 3 as second argument.
-				histogramGraphComUnnorm.display_graph(disp_com_unnorm, 3, 1, "VALUES", 0, 255, "COUNT PER BIN", 0, histogramGraphComUnnorm.max(), true);
+				CImgDisplay disp_cum_unnorm(800, 600, "Unnormalised Cumulative Histogram (8-bit Greyscale)"); // Labels and sets window size. And bar type graph value 3 as second argument.
+				histogramGraphcumUnnorm.display_graph(disp_cum_unnorm, 3, 1, "VALUES", 0, 255, "COUNT PER BIN", 0, histogramGraphcumUnnorm.max(), true);
 
 			}	
 			else if(!is16Bit){				
@@ -531,28 +531,28 @@ int main(int argc, char **argv) {
 					if (kernelType=="hillis"){
 						std::cout<<"Hillis-Steele"<<endl;
 						check = true;
-						cl::Kernel kernelCom = cl::Kernel(program, "com_hist"); // Indexed Histograms get passed as arguments and written on when outputted.
-						kernelCom.setArg(0, *rgbBuffers[i]);		// De referenced pointers.
-						kernelCom.setArg(1, *rgbBuffersCom[i]);
-						cl::Event e_hillis_histCom;
-						queue.enqueueNDRangeKernel(kernelCom, cl::NullRange, cl::NDRange(binNumber), cl::NDRange(binNumber),nullptr,&e_hillis_histCom);
-						event_log.push_back({"Hillis comulative histogram", e_hillis_histCom, 1,8});
-						cl::Event e_ComHistReadBuffer;
-						queue.enqueueReadBuffer(*rgbBuffersCom[i], CL_TRUE, 0, buffer_Size, &histogramComRgb[i].data()[0], nullptr,&e_ComHistReadBuffer);
-						event_log.push_back({"Comulative histogram read buffer", e_ComHistReadBuffer, 1,8});
+						cl::Kernel kernelcum = cl::Kernel(program, "cum_hist"); // Indexed Histograms get passed as arguments and written on when outputted.
+						kernelcum.setArg(0, *rgbBuffers[i]);		// De referenced pointers.
+						kernelcum.setArg(1, *rgbBufferscum[i]);
+						cl::Event e_hillis_histcum;
+						queue.enqueueNDRangeKernel(kernelcum, cl::NullRange, cl::NDRange(binNumber), cl::NDRange(binNumber),nullptr,&e_hillis_histcum);
+						event_log.push_back({"Hillis cumulative histogram", e_hillis_histcum, 1,8});
+						cl::Event e_cumHistReadBuffer;
+						queue.enqueueReadBuffer(*rgbBufferscum[i], CL_TRUE, 0, buffer_Size, &histogramcumRgb[i].data()[0], nullptr,&e_cumHistReadBuffer);
+						event_log.push_back({"Cumulative histogram read buffer", e_cumHistReadBuffer, 1,8});
 
 					}
 					else if(kernelType=="blelloch"){ //Same as above. Input and output histogram gets overwritten.
 						std::cout<<"Blelloch"<<endl;
 						check = true;			
-						cl::Kernel kernelCom = cl::Kernel(program, "scan_bl");
-						kernelCom.setArg(0, *rgbBuffers[i]);
-						cl::Event e_Blelloch_histCom;
-						queue.enqueueNDRangeKernel(kernelCom, cl::NullRange, cl::NDRange(binNumber), cl::NDRange(binNumber),nullptr,&e_Blelloch_histCom);
-						event_log.push_back({"Blelloch comulative histogram", e_Blelloch_histCom, 1,8});
-						cl::Event e_ComHistReadBuffer;
-						queue.enqueueReadBuffer(*rgbBuffers[i], CL_TRUE, 0, buffer_Size, &histogramComRgb[i].data()[0], nullptr,&e_ComHistReadBuffer);
-						event_log.push_back({"Comulative histogram read buffer", e_ComHistReadBuffer, 1,8});
+						cl::Kernel kernelcum = cl::Kernel(program, "scan_bl");
+						kernelcum.setArg(0, *rgbBuffers[i]);
+						cl::Event e_Blelloch_histcum;
+						queue.enqueueNDRangeKernel(kernelcum, cl::NullRange, cl::NDRange(binNumber), cl::NDRange(binNumber),nullptr,&e_Blelloch_histcum);
+						event_log.push_back({"Blelloch cumulative histogram", e_Blelloch_histcum, 1,8});
+						cl::Event e_cumHistReadBuffer;
+						queue.enqueueReadBuffer(*rgbBuffers[i], CL_TRUE, 0, buffer_Size, &histogramcumRgb[i].data()[0], nullptr,&e_cumHistReadBuffer);
+						event_log.push_back({"Cumulative histogram read buffer", e_cumHistReadBuffer, 1,8});
 
 					}
 					else{
@@ -561,12 +561,12 @@ int main(int argc, char **argv) {
 				}
 				vector<const char*> histNames = {"Red Unnormalised Cumulative Histogram", "Green Unnormalised Cumulative Histogram", "Blue Unnormalised Cumulative Histogram"};
 				for (int i = 0; i < 3; i++) {
-					CImg<int> histogramGraphComUnnorm(binNumber, 1, 1, 1, 0);
+					CImg<int> histogramGraphcumUnnorm(binNumber, 1, 1, 1, 0);
 					for (int j = 0; j < binNumber; ++j) {
-						histogramGraphComUnnorm(j) = histogramComRgb[i][j];
+						histogramGraphcumUnnorm(j) = histogramcumRgb[i][j];
 					}
-					CImgDisplay disp_com_unnorm(800, 600, histNames[i]);
-					histogramGraphComUnnorm.display_graph(disp_com_unnorm, 3, 1, "VALUES", 0, 255, "COUNT PER BIN", 0, histogramGraphComUnnorm.max(), true);
+					CImgDisplay disp_cum_unnorm(800, 600, histNames[i]);
+					histogramGraphcumUnnorm.display_graph(disp_cum_unnorm, 3, 1, "VALUES", 0, 255, "COUNT PER BIN", 0, histogramGraphcumUnnorm.max(), true);
 				}
 			}else if(is16Bit &&spectrum ==1 ){		
 
@@ -574,27 +574,27 @@ int main(int argc, char **argv) {
 				if (kernelType=="hillis"){
 					std::cout<<"Hillis-Steele"<<endl;
 					check = true;
-					cl::Kernel kernelCom = cl::Kernel(program, "com_hist");
-					kernelCom.setArg(0, dev_histGrey);		
-					kernelCom.setArg(1, dev_histGreyCom);
-					cl::Event e_hillis_histCom;
-					queue.enqueueNDRangeKernel(kernelCom, cl::NullRange, cl::NDRange(binNumber), cl::NDRange(binNumber),nullptr,&e_hillis_histCom);
-					event_log.push_back({"Hillis comulative histogram", e_hillis_histCom, 0,16});
-					cl::Event e_ComHistReadBuffer;
-					queue.enqueueReadBuffer(dev_histGreyCom, CL_TRUE, 0, buffer_Size, &histogramCom.data()[0], nullptr,&e_ComHistReadBuffer);
-					event_log.push_back({"Comulative histogram read buffer", e_ComHistReadBuffer, 0,16});
+					cl::Kernel kernelcum = cl::Kernel(program, "cum_hist");
+					kernelcum.setArg(0, dev_histGrey);		
+					kernelcum.setArg(1, dev_histGreycum);
+					cl::Event e_hillis_histcum;
+					queue.enqueueNDRangeKernel(kernelcum, cl::NullRange, cl::NDRange(binNumber), cl::NDRange(binNumber),nullptr,&e_hillis_histcum);
+					event_log.push_back({"Hillis cumulative histogram", e_hillis_histcum, 0,16});
+					cl::Event e_cumHistReadBuffer;
+					queue.enqueueReadBuffer(dev_histGreycum, CL_TRUE, 0, buffer_Size, &histogramcum.data()[0], nullptr,&e_cumHistReadBuffer);
+					event_log.push_back({"Cumulative histogram read buffer", e_cumHistReadBuffer, 0,16});
 				}
 				else if(kernelType=="blelloch"){
 					std::cout<<"Blelloch"<<endl;
 					check = true;			
-					cl::Kernel kernelCom = cl::Kernel(program, "scan_bl");
-					kernelCom.setArg(0, dev_histGrey);
-					cl::Event e_Blelloch_histCom;
-					queue.enqueueNDRangeKernel(kernelCom, cl::NullRange, cl::NDRange(binNumber), cl::NDRange(binNumber),nullptr,&e_Blelloch_histCom);
-					event_log.push_back({"Blelloch comulative histogram", e_Blelloch_histCom, 0,16});
-					cl::Event e_ComHistReadBuffer;
-					queue.enqueueReadBuffer(dev_histGrey, CL_TRUE, 0, buffer_Size, &histogramCom.data()[0], nullptr,&e_ComHistReadBuffer);
-					event_log.push_back({"Comulative histogram read buffer", e_ComHistReadBuffer, 0,16});
+					cl::Kernel kernelcum = cl::Kernel(program, "scan_bl");
+					kernelcum.setArg(0, dev_histGrey);
+					cl::Event e_Blelloch_histcum;
+					queue.enqueueNDRangeKernel(kernelcum, cl::NullRange, cl::NDRange(binNumber), cl::NDRange(binNumber),nullptr,&e_Blelloch_histcum);
+					event_log.push_back({"Blelloch cumulative histogram", e_Blelloch_histcum, 0,16});
+					cl::Event e_cumHistReadBuffer;
+					queue.enqueueReadBuffer(dev_histGrey, CL_TRUE, 0, buffer_Size, &histogramcum.data()[0], nullptr,&e_cumHistReadBuffer);
+					event_log.push_back({"Cumulative histogram read buffer", e_cumHistReadBuffer, 0,16});
 
 					
 				}
@@ -602,26 +602,26 @@ int main(int argc, char **argv) {
 					std::cout<<"Invalid input. Please enter either Scan or Blelloch"<<endl;
 				}
 
-				CImg<int> histogramGraphComUnnorm(binNumber, 1, 1, 1, 0);
+				CImg<int> histogramGraphcumUnnorm(binNumber, 1, 1, 1, 0);
 				for (int i = 0; i < binNumber; ++i) {
-					histogramGraphComUnnorm(i) = histogramCom[i];
+					histogramGraphcumUnnorm(i) = histogramcum[i];
 				}
-				CImgDisplay disp_com_unnorm(800, 600, "Unnormalised Cumulative Histogram (16-bit Greyscale)");
-				histogramGraphComUnnorm.display_graph(disp_com_unnorm, 3, 1, "VALUES", 0, binNumber - 1, "COUNT PER BIN", 0, histogramGraphComUnnorm.max(), true);
+				CImgDisplay disp_cum_unnorm(800, 600, "Unnormalised Cumulative Histogram (16-bit Greyscale)");
+				histogramGraphcumUnnorm.display_graph(disp_cum_unnorm, 3, 1, "VALUES", 0, binNumber - 1, "COUNT PER BIN", 0, histogramGraphcumUnnorm.max(), true);
 
-				int maximumValue = histogramCom[binNumber - 1];
+				int maximumValue = histogramcum[binNumber - 1];
 				float maximumBinValue = static_cast<float>(maximumValue);
 
 				// Converts intermediate results to floats for normalisation
-				vector<float> histogramComFloat(binNumber, 0.0f); // New float vector
+				vector<float> histogramcumFloat(binNumber, 0.0f); // New float vector
 				for (int i = 0; i < binNumber; ++i) {
-					histogramComFloat[i] = static_cast<float>(histogramCom[i]); // Convert int to float
+					histogramcumFloat[i] = static_cast<float>(histogramcum[i]); // Convert int to float
 				}
 
 				buffer_Size_float = binNumber * sizeof(float); 		
-				cl::Event e_Com_write_buffer;	
-				queue.enqueueWriteBuffer(dev_histNormal, CL_TRUE, 0, buffer_Size_float, &histogramComFloat.data()[0],nullptr,&e_Com_write_buffer);
-				event_log.push_back({"Normalised histogram write buffer", e_Com_write_buffer, 0,16});
+				cl::Event e_cum_write_buffer;	
+				queue.enqueueWriteBuffer(dev_histNormal, CL_TRUE, 0, buffer_Size_float, &histogramcumFloat.data()[0],nullptr,&e_cum_write_buffer);
+				event_log.push_back({"Normalised histogram write buffer", e_cum_write_buffer, 0,16});
 
 				cl::Kernel histNormal = cl::Kernel(program, "hist_normal");// Same as all previous kernels. 
 				histNormal.setArg(0, dev_histNormal);	
@@ -632,19 +632,19 @@ int main(int argc, char **argv) {
 
 
 				cl::Event e_hist_norm_read_buffer;	
-				queue.enqueueReadBuffer(dev_histNormal, CL_TRUE, 0, buffer_Size_float, &histogramComFloat.data()[0],nullptr,&e_hist_norm_read_buffer);
+				queue.enqueueReadBuffer(dev_histNormal, CL_TRUE, 0, buffer_Size_float, &histogramcumFloat.data()[0],nullptr,&e_hist_norm_read_buffer);
 				event_log.push_back({"Normalised histogram read buffer", e_hist_norm_read_buffer, 0,16});				
 
-				CImg<float> histogramGraphCom(binNumber, 1, 1, 1, 0); // Create a 1D CImg object for the raw histogram
+				CImg<float> histogramGraphcum(binNumber, 1, 1, 1, 0); // Create a 1D CImg object for the raw histogram
 				for (int  i= 0;  i< binNumber; ++i) {
-					histogramGraphCom(i) = histogramComFloat[i]; // Copy raw histogram values
+					histogramGraphcum(i) = histogramcumFloat[i]; // Copy raw histogram values
 				}
 
 				// // Sets histogram window size		   
-				CImgDisplay disp_com(800, 600, "Cumulative Histogram");
+				CImgDisplay disp_cum(800, 600, "Cumulative Histogram");
 
 				// // Display histograms using the custom display objects
-				histogramGraphCom.display_graph(disp_com, 3,1,"VALUES",0,255,"COUNT PER BIN",0,histogramGraphCom.max());	
+				histogramGraphcum.display_graph(disp_cum, 3,1,"VALUES",0,255,"COUNT PER BIN",0,histogramGraphcum.max());	
 
 				binNumber = 1024; 
 				size_t buffer_Size_float = binNumber * sizeof(float);
@@ -698,31 +698,31 @@ int main(int argc, char **argv) {
 					if (kernelType=="hillis"){
 						std::cout<<"Hillis-Steele"<<endl;
 						check = true;
-						cl::Kernel kernelCom = cl::Kernel(program, "com_hist");
-						kernelCom.setArg(0, *rgbBuffers[i]);		
-						kernelCom.setArg(1, *rgbBuffersCom[i]);
+						cl::Kernel kernelcum = cl::Kernel(program, "cum_hist");
+						kernelcum.setArg(0, *rgbBuffers[i]);		
+						kernelcum.setArg(1, *rgbBufferscum[i]);
 
 						cl::Event e_hillis_kernel;	
-						queue.enqueueNDRangeKernel(kernelCom, cl::NullRange, cl::NDRange(binNumber), cl::NDRange(binNumber),nullptr,&e_hillis_kernel);
-						event_log.push_back({"Hillis comulative histogram", e_hillis_kernel, 1,16});		
+						queue.enqueueNDRangeKernel(kernelcum, cl::NullRange, cl::NDRange(binNumber), cl::NDRange(binNumber),nullptr,&e_hillis_kernel);
+						event_log.push_back({"Hillis Cumulative histogram", e_hillis_kernel, 1,16});		
 
-						cl::Event e_comHist_read_buffer;	
-						queue.enqueueReadBuffer(*rgbBuffersCom[i], CL_TRUE, 0, buffer_Size, &histogramComRgb[i].data()[0], nullptr,&e_comHist_read_buffer);
-						event_log.push_back({"Comulative histogram read buffer", e_comHist_read_buffer, 1,16});		
+						cl::Event e_cumHist_read_buffer;	
+						queue.enqueueReadBuffer(*rgbBufferscum[i], CL_TRUE, 0, buffer_Size, &histogramcumRgb[i].data()[0], nullptr,&e_cumHist_read_buffer);
+						event_log.push_back({"Cumulative histogram read buffer", e_cumHist_read_buffer, 1,16});		
 
 					}
 					else if(kernelType=="blelloch"){
 						std::cout<<"Blelloch"<<endl;
 						check = true;			
-						cl::Kernel kernelCom = cl::Kernel(program, "scan_bl");
-						kernelCom.setArg(0, *rgbBuffers[i]);
+						cl::Kernel kernelcum = cl::Kernel(program, "scan_bl");
+						kernelcum.setArg(0, *rgbBuffers[i]);
 						cl::Event e_blelloch_kernel;	
-						queue.enqueueNDRangeKernel(kernelCom, cl::NullRange, cl::NDRange(binNumber), cl::NDRange(binNumber),nullptr,&e_blelloch_kernel);
-						event_log.push_back({"Blelloch comulative histogram", e_blelloch_kernel, 1,16});		
+						queue.enqueueNDRangeKernel(kernelcum, cl::NullRange, cl::NDRange(binNumber), cl::NDRange(binNumber),nullptr,&e_blelloch_kernel);
+						event_log.push_back({"Blelloch cumulative histogram", e_blelloch_kernel, 1,16});		
 
-						cl::Event e_comHist_read_buffer;
-						queue.enqueueReadBuffer(*rgbBuffers[i], CL_TRUE, 0, buffer_Size, &histogramComRgb[i].data()[0], nullptr,&e_comHist_read_buffer);
-						event_log.push_back({"Comulative histogram read buffer", e_comHist_read_buffer, 1,16});		
+						cl::Event e_cumHist_read_buffer;
+						queue.enqueueReadBuffer(*rgbBuffers[i], CL_TRUE, 0, buffer_Size, &histogramcumRgb[i].data()[0], nullptr,&e_cumHist_read_buffer);
+						event_log.push_back({"Cumulative histogram read buffer", e_cumHist_read_buffer, 1,16});		
 
 					}
 					else{
@@ -731,12 +731,12 @@ int main(int argc, char **argv) {
 				}
 				vector<const char*> histNames = {"Red Unnormalised Cumulative Histogram (16-bit)", "Green Unnormalised Cumulative Histogram (16-bit)", "Blue Unnormalised Cumulative Histogram (16-bit)"};
 				for (int i = 0; i < 3; i++) {
-					CImg<int> histogramGraphComUnnorm(binNumber, 1, 1, 1, 0);
+					CImg<int> histogramGraphcumUnnorm(binNumber, 1, 1, 1, 0);
 					for (int j = 0; j < binNumber; ++j) {
-						histogramGraphComUnnorm(j) = histogramComRgb[i][j];
+						histogramGraphcumUnnorm(j) = histogramcumRgb[i][j];
 					}
-					CImgDisplay disp_com_unnorm(800, 600, histNames[i]);
-					histogramGraphComUnnorm.display_graph(disp_com_unnorm, 3, 1, "VALUES", 0, binNumber - 1, "COUNT PER BIN", 0, histogramGraphComUnnorm.max(), true);
+					CImgDisplay disp_cum_unnorm(800, 600, histNames[i]);
+					histogramGraphcumUnnorm.display_graph(disp_cum_unnorm, 3, 1, "VALUES", 0, binNumber - 1, "COUNT PER BIN", 0, histogramGraphcumUnnorm.max(), true);
 				}
 
 			}			
@@ -744,16 +744,16 @@ int main(int argc, char **argv) {
 		// This block is responsible for normalisation and back projection kernel setup and calls.
 		if(spectrum==1 && !is16Bit){// For Greyscale images.
 
-			int maximumValue = histogramCom[binNumber - 1];
+			int maximumValue = histogramcum[binNumber - 1];
 			float maximumBinValue = static_cast<float>(maximumValue);
 
 			// Converts intermediate results to floats for normalisation
-			vector<float> histogramComFloat(binNumber, 0.0f); // New float vector
+			vector<float> histogramcumFloat(binNumber, 0.0f); // New float vector
 			for (int i = 0; i < binNumber; ++i) {
-				histogramComFloat[i] = static_cast<float>(histogramCom[i]); // Convert int to float
+				histogramcumFloat[i] = static_cast<float>(histogramcum[i]); // Convert int to float
 			}
 			cl::Event e_write_buffer_hist_norm;
-			queue.enqueueWriteBuffer(dev_histNormal, CL_TRUE, 0, buffer_Size_float, &histogramComFloat.data()[0],nullptr,&e_write_buffer_hist_norm);
+			queue.enqueueWriteBuffer(dev_histNormal, CL_TRUE, 0, buffer_Size_float, &histogramcumFloat.data()[0],nullptr,&e_write_buffer_hist_norm);
 			event_log.push_back({"Histogram normaliser write buffer", e_write_buffer_hist_norm, 0,8});
 
 			cl::Kernel histNormal = cl::Kernel(program, "hist_normal");// Same as all previous kernels. 
@@ -764,7 +764,7 @@ int main(int argc, char **argv) {
 			queue.enqueueNDRangeKernel(histNormal, cl::NullRange, cl::NDRange(binNumber), cl::NullRange,nullptr,&e_hist_normal_kernel);
 			event_log.push_back({"Histogram normaliser kernel", e_hist_normal_kernel, 0,8});
 			cl::Event e_read_buffer_hist_norm;
-			queue.enqueueReadBuffer(dev_histNormal, CL_TRUE, 0, buffer_Size_float, &histogramComFloat.data()[0],nullptr,&e_read_buffer_hist_norm);	
+			queue.enqueueReadBuffer(dev_histNormal, CL_TRUE, 0, buffer_Size_float, &histogramcumFloat.data()[0],nullptr,&e_read_buffer_hist_norm);	
 			event_log.push_back({"Histogram normaliser read buffer", e_hist_normal_kernel, 0,8});
 	
 			
@@ -783,15 +783,15 @@ int main(int argc, char **argv) {
 			queue.enqueueReadBuffer(dev_image_output, CL_TRUE, 0, output_buffer.size(), &output_buffer.data()[0],nullptr,&e_output_buffer_read);
 			event_log.push_back({"Output buffer read", e_output_buffer_read, 0,8});			
 
-			CImg<float> histogramGraphCom(binNumber, 1, 1, 1, 0); // Creates a 1D CImg object for the raw histogram
+			CImg<float> histogramGraphcum(binNumber, 1, 1, 1, 0); // Creates a 1D CImg object for the raw histogram
 			for (int i = 0; i < binNumber; ++i) {
-				histogramGraphCom(i) = histogramComFloat[i]; // Copies raw histogram values
+				histogramGraphcum(i) = histogramcumFloat[i]; // Copies raw histogram values
 			}			
 			
-			CImgDisplay disp_com(800, 600, "Cumulative Histogram");
+			CImgDisplay disp_cum(800, 600, "Cumulative Histogram");
 
 			// Display histograms using the custom display objects for greyscale images.
-			histogramGraphCom.display_graph(disp_com, 3,1,"VALUES",0,255,"COUNT PER BIN",0,histogramGraphCom.max(),true);	
+			histogramGraphcum.display_graph(disp_cum, 3,1,"VALUES",0,255,"COUNT PER BIN",0,histogramGraphcum.max(),true);	
 
 
 			CImg<unsigned char> output_image(output_buffer.data(), width, height, depth, spectrum);
@@ -829,57 +829,57 @@ int main(int argc, char **argv) {
 			cl::Buffer dev_histNormalG(context, CL_MEM_READ_WRITE, buffer_Size_float);
 			cl::Buffer dev_histNormalB(context, CL_MEM_READ_WRITE, buffer_Size_float);
 
-			vector<cl::Buffer*> rgbBuffersComNorm = {&dev_histNormalR, &dev_histNormalG, &dev_histNormalB}; // Pointer vector holding the buffers.
+			vector<cl::Buffer*> rgbBufferscumNorm = {&dev_histNormalR, &dev_histNormalG, &dev_histNormalB}; // Pointer vector holding the buffers.
 
 			// Converts intermediate results to floats for normalisation
-			vector<float> histogramComFloatR(binNumber, 0.0f); // New float vectors for normalised comulative histograms which require decimals.
-			vector<float> histogramComFloatG(binNumber, 0.0f); 
-			vector<float> histogramComFloatB(binNumber, 0.0f); 
-			vector <vector<float>*> histogramComRgbFloat = {&histogramComFloatR,&histogramComFloatG,&histogramComFloatB}; //Another pointer vector.
+			vector<float> histogramcumFloatR(binNumber, 0.0f); // New float vectors for normalised cumulative histograms which require decimals.
+			vector<float> histogramcumFloatG(binNumber, 0.0f); 
+			vector<float> histogramcumFloatB(binNumber, 0.0f); 
+			vector <vector<float>*> histogramcumRgbFloat = {&histogramcumFloatR,&histogramcumFloatG,&histogramcumFloatB}; //Another pointer vector.
 			vector<unsigned char> output_buffer(image_size);
 
 			float maximumValue;
-			for(int i=0;i<histogramComRgb.size();i++){				
+			for(int i=0;i<histogramcumRgb.size();i++){				
 				for (int j = 0; j < binNumber; ++j) 
-				(*histogramComRgbFloat[i])[j] = static_cast<float>(histogramComRgb[i][j]); // Converts int to float, non parallel. It was a small job.
+				(*histogramcumRgbFloat[i])[j] = static_cast<float>(histogramcumRgb[i][j]); // Converts int to float, non parallel. It was a small job.
 			}							
 
-			for(int i=0;i<histogramComRgb.size();i++){	
-				maximumValue = histogramComRgb[i][binNumber-1];
+			for(int i=0;i<histogramcumRgb.size();i++){	
+				maximumValue = histogramcumRgb[i][binNumber-1];
 				maximumValue = static_cast<float>(maximumValue); // Max value for each different colour channel.
-				cl::Event e_Com_write_buffer;	
-				queue.enqueueWriteBuffer(*rgbBuffersComNorm[i], CL_TRUE, 0, buffer_Size_float, &(*histogramComRgbFloat[i]).data()[0],nullptr,&e_Com_write_buffer);
-				event_log.push_back({"Comulative histogram write buffer", e_Com_write_buffer, 1,8});
+				cl::Event e_cum_write_buffer;	
+				queue.enqueueWriteBuffer(*rgbBufferscumNorm[i], CL_TRUE, 0, buffer_Size_float, &(*histogramcumRgbFloat[i]).data()[0],nullptr,&e_cum_write_buffer);
+				event_log.push_back({"Cumulative histogram write buffer", e_cum_write_buffer, 1,8});
 				cl::Kernel histNormal = cl::Kernel(program, "hist_normal"); // Sets up normalisation kernel.
-				histNormal.setArg(0, *rgbBuffersComNorm[i]);	
+				histNormal.setArg(0, *rgbBufferscumNorm[i]);	
 				histNormal.setArg(1, maximumValue);		
 				cl::Event e_normaliser_kernel;	
 				queue.enqueueNDRangeKernel(histNormal, cl::NullRange, cl::NDRange(binNumber), cl::NullRange,nullptr,&e_normaliser_kernel);
 				event_log.push_back({"Histogram normaliser kernel", e_normaliser_kernel, 1,8});
-				cl::Event e_Com_read_buffer;	
-				queue.enqueueReadBuffer(*rgbBuffersComNorm[i], CL_TRUE, 0, buffer_Size_float, &(*histogramComRgbFloat[i]).data()[0],nullptr,&e_Com_read_buffer);	
-				event_log.push_back({"Normalised comulative histogram read buffer", e_Com_read_buffer, 1,8});
+				cl::Event e_cum_read_buffer;	
+				queue.enqueueReadBuffer(*rgbBufferscumNorm[i], CL_TRUE, 0, buffer_Size_float, &(*histogramcumRgbFloat[i]).data()[0],nullptr,&e_cum_read_buffer);	
+				event_log.push_back({"Normalised cumulative histogram read buffer", e_cum_read_buffer, 1,8});
 
-				CImg<float> histogramGraphCom(binNumber, 1, 1, 1, 0); // Create a 1D CImg object for the raw histogram
+				CImg<float> histogramGraphcum(binNumber, 1, 1, 1, 0); // Create a 1D CImg object for the raw histogram
 				for (int j = 0; j < binNumber; ++j) {
-					histogramGraphCom(j) = (*histogramComRgbFloat[i])[j]; // Copy raw histogram values
-					// std::cout<< (*histogramComRgbFloat[i])[j]<<endl;
+					histogramGraphcum(j) = (*histogramcumRgbFloat[i])[j]; // Copy raw histogram values
+					// std::cout<< (*histogramcumRgbFloat[i])[j]<<endl;
 				}
 				
 				// // Sets histogram window size
-				CImgDisplay disp_com(800, 600, "Cumulative Histogram");
+				CImgDisplay disp_cum(800, 600, "Cumulative Histogram");
 
 				// // Display histograms using the custom display objects
-				histogramGraphCom.display_graph(disp_com, 3,1,"VALUES",0,255,"COUNT PER BIN",0,histogramGraphCom.max(),true);					
+				histogramGraphcum.display_graph(disp_cum, 3,1,"VALUES",0,255,"COUNT PER BIN",0,histogramGraphcum.max(),true);					
 
 			}
 			if(!is16Bit){// Same as before but for rgb.
 				cl::Kernel proj = cl::Kernel(program, "back_projectorRgb");
 				proj.setArg(0, dev_image_input);	
 				proj.setArg(1, dev_image_output);	
-				proj.setArg(2, *rgbBuffersComNorm[0]);
-				proj.setArg(3, *rgbBuffersComNorm[1]);
-				proj.setArg(4, *rgbBuffersComNorm[2]);
+				proj.setArg(2, *rgbBufferscumNorm[0]);
+				proj.setArg(3, *rgbBufferscumNorm[1]);
+				proj.setArg(4, *rgbBufferscumNorm[2]);
 				proj.setArg(5,binNumber);	
 				cl::Event e_back_proj_kernel;	
 				queue.enqueueNDRangeKernel(proj, cl::NullRange, cl::NDRange(imageDimensions), cl::NullRange,nullptr,&e_back_proj_kernel);

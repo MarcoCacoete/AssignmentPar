@@ -39,13 +39,13 @@ kernel void hist_local(global const uchar* inputImage, global int* histogramOutp
 }
 
 // Just a simple normaliser that divides value by max value for histogram. Required step for back projection.
-kernel void hist_normal(global float* comHist,float maxBin){
+kernel void hist_normal(global float* cumHist,float maxBin){
 	int id = get_global_id(0);
-	comHist[id] = (float)comHist[id] / maxBin;		
+	cumHist[id] = (float)cumHist[id] / maxBin;		
 }
 
 //Hillis-Steele basic inclusive scan adapted from workshop materials for tutorial 3
-kernel void com_hist(global int* A, global int* B) {
+kernel void cum_hist(global int* A, global int* B) {
     int id = get_global_id(0);
     int N = get_global_size(0);
     B[id] = A[id];
