@@ -10,6 +10,24 @@
 using namespace cimg_library;
 using namespace std;
 
+void metricsMaker(vector<tuple<string, cl::Event, int, int>> event_log, int spectrum ,int is16bit){
+
+		int eventTime; // Variable for per event execution time.
+				double totalTime = 0.0; // This is for the accumulated time of the events.
+				std::cout << "\nTiming Results (in milliseconds):\n"; 
+				for (int i = 0; i < event_log.size(); i++) { // Iterates through a vector I defined at top of code with the tuples with 4 elements.
+					if (get<2>(event_log[i]) == spectrum && get<3>(event_log[i]) == is16bit) { // Crosschecks for 8bit, this is hardcoded at the end of pipeline.
+						cl_ulong startTime = get<1>(event_log[i]).getProfilingInfo<CL_PROFILING_COMMAND_START>(); // Extracts beginning and end timestamps to 
+						cl_ulong endTime = get<1>(event_log[i]).getProfilingInfo<CL_PROFILING_COMMAND_END>();	// Subtracts their values for the duration.
+						double durationMs = (endTime - startTime) / 1e6; // This calculates the duration of an event and converts to milliseconds.
+				
+						cout << get<0>(event_log[i]) << " time to process: " << durationMs << " ms\n"; // Message output.
+						totalTime += durationMs; // Accumulator for the durations to calculate total.
+					}
+				}
+				std::cout << "Total time for pipeline in milliseconds: " << totalTime << " ms\n";// Total time for whole pipeline.
+}
+
 // Two functions to print out the images, intput and output. Greyscale 8 and 16 bit.
 CImg<unsigned char> picture_output(const std::string& image_filename){
 	CImg<unsigned char> image_input(image_filename.c_str());
@@ -671,21 +689,8 @@ int main(int argc, char **argv) {
 				
 				//This little block is in charge of outputting metrics for time to execute, for memory and kernel executions. 
 				queue.finish();// Make sure all operations are finished.
+				metricsMaker(event_log,0,16);		
 
-				int eventTime; // Variable for per event execution time.
-				double totalTime = 0.0; // This is for the accumulated time of the events.
-				cout << "\nTiming Results (in milliseconds):\n"; 
-				for (int i = 0; i < event_log.size(); i++) { // Iterates through a vector I defined at top of code with the tuples with 4 elements.
-					if (get<2>(event_log[i]) == 0 && get<3>(event_log[i]) == 16) { // Crosschecks for 8bit, this is hardcoded at the end of pipeline.
-						cl_ulong startTime = get<1>(event_log[i]).getProfilingInfo<CL_PROFILING_COMMAND_START>(); // Extracts beginning and end timestamps to 
-						cl_ulong endTime = get<1>(event_log[i]).getProfilingInfo<CL_PROFILING_COMMAND_END>();	// subtract their values for the duration.
-						double durationMs = (endTime - startTime) / 1e6; // This calculates the duration of an event and converts to milliseconds.
-				
-						cout << get<0>(event_log[i]) << " time to process: " << durationMs << " ms\n"; // Message output.
-						totalTime += durationMs; // Accumulator for the durations to calculate total.
-					}
-				}
-				cout << "Total time for pipeline in milliseconds: " << totalTime << " ms\n";// Total time for whole pipeline.
 
 				CImg<unsigned short> output_image(output_buffer.data(), width, height, depth, spectrum);
 				string output_name = "output_image_16bitGreyscale.pgm";
@@ -801,21 +806,10 @@ int main(int argc, char **argv) {
 
 			//This little block is in charge of outputting metrics for time to execute, for memory and kernel executions. 
 			queue.finish();// Make sure all operations are finished.
+			metricsMaker(event_log,0,8);		
 
-			int eventTime; // Variable for per event execution time.
-			double totalTime = 0.0; // This is for the accumulated time of the events.
-			cout << "\nTiming Results (in milliseconds):\n"; 
-			for (int i = 0; i < event_log.size(); i++) { // Iterates through a vector I defined at top of code with the tuples with 4 elements.
-				if (get<2>(event_log[i]) == 0 && get<3>(event_log[i]) == 8) { // Crosschecks for 8bit, this is hardcoded at the end of pipeline.
-					cl_ulong startTime = get<1>(event_log[i]).getProfilingInfo<CL_PROFILING_COMMAND_START>(); // Extracts beginning and end timestamps to 
-					cl_ulong endTime = get<1>(event_log[i]).getProfilingInfo<CL_PROFILING_COMMAND_END>();	// subtract their values for the duration.
-					double durationMs = (endTime - startTime) / 1e6; // This calculates the duration of an event and converts to milliseconds.
+
 			
-					cout << get<0>(event_log[i]) << " time to process: " << durationMs << " ms\n"; // Message output.
-					totalTime += durationMs; // Accumulator for the durations to calculate total.
-				}
-			}
-			cout << "Total time for pipeline in milliseconds: " << totalTime << " ms\n";// Total time for whole pipeline.
 
 
 		}else if(spectrum==3){// Same as above but for rgb images.
@@ -896,22 +890,9 @@ int main(int argc, char **argv) {
 				picture_output(output_name);
 
 				//This little block is in charge of outputting metrics for time to execute, for memory and kernel executions. 
-				queue.finish();// Make sure all operations are finished.
+				queue.finish();// Make sure all operations are finished.	
+				metricsMaker(event_log,1,8);		
 
-				int eventTime; // Variable for per event execution time.
-				double totalTime = 0.0; // This is for the accumulated time of the events.
-				cout << "\nTiming Results (in milliseconds):\n"; 
-				for (int i = 0; i < event_log.size(); i++) { // Iterates through a vector I defined at top of code with the tuples with 4 elements.
-					if (get<2>(event_log[i]) == 1 && get<3>(event_log[i]) == 8) { // Crosschecks for 8bit, this is hardcoded at the end of pipeline.
-						cl_ulong startTime = get<1>(event_log[i]).getProfilingInfo<CL_PROFILING_COMMAND_START>(); // Extracts beginning and end timestamps to 
-						cl_ulong endTime = get<1>(event_log[i]).getProfilingInfo<CL_PROFILING_COMMAND_END>();	// subtract their values for the duration.
-						double durationMs = (endTime - startTime) / 1e6; // This calculates the duration of an event and converts to milliseconds.
-				
-						cout << get<0>(event_log[i]) << " time to process: " << durationMs << " ms\n"; // Message output.
-						totalTime += durationMs; // Accumulator for the durations to calculate total.
-					}
-				}
-				cout << "Total time for pipeline in milliseconds: " << totalTime << " ms\n";// Total time for whole pipeline.
 
 				
 			}
@@ -957,23 +938,15 @@ int main(int argc, char **argv) {
 
 				//This little block is in charge of outputting metrics for time to execute, for memory and kernel executions. 
 				queue.finish();// Make sure all operations are finished.
+				metricsMaker(event_log,1,16);		
 
-				int eventTime; // Variable for per event execution time.
-				double totalTime = 0.0; // This is for the accumulated time of the events.
-				cout << "\nTiming Results (in milliseconds):\n"; 
-				for (int i = 0; i < event_log.size(); i++) { // Iterates through a vector I defined at top of code with the tuples with 4 elements.
-					if (get<2>(event_log[i]) == 1 && get<3>(event_log[i]) == 16) { // Crosschecks for 8bit, this is hardcoded at the end of pipeline.
-						cl_ulong startTime = get<1>(event_log[i]).getProfilingInfo<CL_PROFILING_COMMAND_START>(); // Extracts beginning and end timestamps to 
-						cl_ulong endTime = get<1>(event_log[i]).getProfilingInfo<CL_PROFILING_COMMAND_END>();	// subtract their values for the duration.
-						double durationMs = (endTime - startTime) / 1e6; // This calculates the duration of an event and converts to milliseconds.
-				
-						cout << get<0>(event_log[i]) << " time to process: " << durationMs << " ms\n"; // Message output.
-						totalTime += durationMs; // Accumulator for the durations to calculate total.
-					}
-				}
-				cout << "Total time for pipeline in milliseconds: " << totalTime << " ms\n";// Total time for whole pipeline.
+
+
 			}
-		}			
+			
+
+		}	
+
 	}
 	catch (const cl::Error& err) {
 		std::cerr << "ERROR: " << err.what() << ", " << getErrorString(err.err()) << std::endl;
