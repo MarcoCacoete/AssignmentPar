@@ -229,6 +229,7 @@ int main(int argc, char **argv) {
 					cl::Kernel kernelAtom = cl::Kernel(program, "hist_atom"); // Kernel argument setup.
 					kernelAtom.setArg(0, dev_image_input);
 					kernelAtom.setArg(1, dev_intensityHistogram);
+					kernelAtom.setArg(2, imageDimensions); 
 					
 					// Enqueued with global and local work size for local memory work, for efficiency.
 					cl::Event e_atom_enqueue;
@@ -246,7 +247,7 @@ int main(int argc, char **argv) {
 					kernelHistLocal.setArg(3, binNumber);
 					kernelHistLocal.setArg(4, imageDimensions);	
 					cl::Event e_local_enqueue;
-					queue.enqueueNDRangeKernel(kernelHistLocal, cl::NullRange, cl::NDRange(globalWorkSize), cl::NDRange(binNumber),nullptr, &e_local_enqueue);
+					queue.enqueueNDRangeKernel(kernelHistLocal, cl::NullRange, cl::NDRange(globalWorkSize), cl::NDRange(localWorkSize),nullptr, &e_local_enqueue);
 					event_log.push_back({"Local memory Histogram kernel", e_local_enqueue, 0,8});
 
 				}
@@ -272,7 +273,7 @@ int main(int argc, char **argv) {
                 kernel.setArg(2, imageDimensions);
 				kernel.setArg(3,binNumber);
 				cl::Event e_histogram_grey;
-                queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(imageDimensions), cl::NDRange(localWorkSize), nullptr,&e_histogram_grey);
+                queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(globalWorkSize), cl::NDRange(localWorkSize), nullptr,&e_histogram_grey);
 				event_log.push_back({"Local histogram kernel", e_histGrey_write_buffer, 0,16});			
 
 				cl::Event e_histogram_read_buffer;
@@ -388,7 +389,7 @@ int main(int argc, char **argv) {
                 kernel.setArg(4, imageDimensions);
 				kernel.setArg(5,binNumber);
 				cl::Event e_histogram_rgb_kernel;
-                queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(imageDimensions), cl::NDRange(localWorkSize), nullptr, &e_histogram_rgb_kernel);
+                queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(globalWorkSize), cl::NDRange(localWorkSize), nullptr, &e_histogram_rgb_kernel);
 				event_log.push_back({"Local histogram kernel", e_histogram_rgb_kernel, 1,16});		
 				
 				cl::Event e_histR_read_buffer;
@@ -770,7 +771,9 @@ int main(int argc, char **argv) {
 			cl::Kernel proj = cl::Kernel(program, "back_projector");
 			proj.setArg(0, dev_image_input);	
 			proj.setArg(1, dev_image_output);	
-			proj.setArg(2, dev_histNormal);	
+			proj.setArg(2, dev_histNormal);
+			proj.setArg(3, imageDimensions); 	
+
 			cl::Event e_back_projector;
 			queue.enqueueNDRangeKernel(proj, cl::NullRange, cl::NDRange(image_size), cl::NullRange,nullptr,&e_back_projector);
 			event_log.push_back({"Back projection kernel", e_hist_normal_kernel, 0,8});			

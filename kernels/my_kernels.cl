@@ -1,9 +1,11 @@
 
 // Histogram using image unsigned character array as input and an int array as output which will hold the intensity values and bin size I picked in host code.
-kernel void hist_atom(global const uchar* inputImage, global int* histogramOutput){
+kernel void hist_atom(global const uchar* inputImage, global int* histogramOutput, int imageSize){
 	int id = get_global_id(0); // Gets work item id
+	if (id < imageSize) {
 	int intensityValue = inputImage[id];  // This assigns the intensity value of the pixel that matches the id to a variable.
-	atomic_inc(&histogramOutput[intensityValue]);  // Increments the corresponding bin each time by using the intensity value as the index number.
+	atomic_inc(&histogramOutput[intensityValue]);
+	}  // Increments the corresponding bin each time by using the intensity value as the index number.
 }
 
 // Code adapted and modified from the workshop materials for tutorial 3, more specifically the reduce_add_4 kernel.
@@ -92,10 +94,12 @@ kernel void scan_bl(global int* A) {
 }
 
 // Back projection kernel blind attempt at making from scratch.
-kernel void back_projector(global const uchar* inputImage, global  uchar* outputImage, global const float* LUT){
+kernel void back_projector(global const uchar* inputImage, global  uchar* outputImage, global const float* LUT, int imageSize){
 	int id = get_global_id(0);
-	int value = inputImage[id];
-	outputImage[id] = LUT[value]*255; // Multiplies normalised value by 255 for a balanced result of values.
+	if (id < imageSize) {  
+		int value = inputImage[id];
+		outputImage[id] = LUT[value]*255; // Multiplies normalised value by 255 for a balanced result of values.
+	}
 } 
 
 // Attempt at an rgb histogram maker kernel.
