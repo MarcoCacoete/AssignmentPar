@@ -79,7 +79,7 @@ int main(int argc, char **argv) {
 	string image_filename = imageName ;
 	// string image_filename = "test_large.pgm";
 
-	for (int i = 1; i < argc; i++) { // More code from workshops, accepts options selected by user.
+	for (int i = 1; i < argc; i++) { // More code from workshops, accepts options selected by user, assigns flags to various variables or calls print help function.
 		if ((strcmp(argv[i], "-p") == 0) && (i < (argc - 1))) { platform_id = atoi(argv[++i]); }
 		else if ((strcmp(argv[i], "-d") == 0) && (i < (argc - 1))) { device_id = atoi(argv[++i]); }
 		else if (strcmp(argv[i], "-l") == 0) { std::cout << ListPlatformsDevices() << std::endl; }
@@ -454,6 +454,7 @@ int main(int argc, char **argv) {
 		vector<int> histogramComG(binNumber,0);
 		vector<int> histogramComB(binNumber,0);
 
+		//Comulative write buffers for cumulative histograms RGB
 		cl::Event e_comulative_hist_write_buffer_R;
 		queue.enqueueWriteBuffer(dev_histRcom, CL_TRUE, 0, buffer_Size, &histogramComR.data()[0],nullptr,&e_comulative_hist_write_buffer_R);
 		event_log.push_back({"Comulative histogram write buffer Red", e_comulative_hist_write_buffer_R, 1,16});
@@ -505,8 +506,16 @@ int main(int argc, char **argv) {
 				}
 				cl::Event e_ComHistReadBuffer;
 				queue.enqueueReadBuffer(dev_comHistogram, CL_TRUE, 0, buffer_Size, &histogramCom.data()[0],nullptr,&e_ComHistReadBuffer);
-				event_log.push_back({"Blelloch comulative histogram", e_ComHistReadBuffer, 0,8});
-				// Cimg output of histogram 
+				event_log.push_back({"Cumulative histogram read buffer", e_ComHistReadBuffer, 0,8});
+				// Cimg output of histograms
+				CImg<int> histogramGraph(binNumber, 1, 1, 1, 0); // Creates a 1D CImg object for the raw histogram
+				for (int i = 0; i < binNumber; ++i) {
+					// int maxValue = *max_element(histogram.begin(), histogram.end());
+					histogramGraph(i) =histogram[i];//maxValue; // Copies raw histogram values
+				}
+					// Sets histogram window size
+				CImgDisplay disp_raw(800, 600, "Raw Histogram");     
+				histogramGraph.display_graph(disp_raw, 3,1,"VALUES",0,255,"COUNT PER BIN",0,histogramGraph.max(),true); 
 				CImg<int> histogramGraphComUnnorm(binNumber, 1, 1, 1, 0); //Creates cimg object using data from histogram vector.
 				for (int i = 0; i < binNumber; ++i) {
 					histogramGraphComUnnorm(i) = histogramCom[i];
@@ -771,23 +780,14 @@ int main(int argc, char **argv) {
 			queue.enqueueReadBuffer(dev_image_output, CL_TRUE, 0, output_buffer.size(), &output_buffer.data()[0],nullptr,&e_output_buffer_read);
 			event_log.push_back({"Output buffer read", e_output_buffer_read, 0,8});			
 
-			CImg<int> histogramGraph(binNumber, 1, 1, 1, 0); // Creates a 1D CImg object for the raw histogram
-			for (int i = 0; i < binNumber; ++i) {
-				// int maxValue = *max_element(histogram.begin(), histogram.end());
-				histogramGraph(i) =histogram[i];//maxValue; // Copies raw histogram values
-			}
-
 			CImg<float> histogramGraphCom(binNumber, 1, 1, 1, 0); // Creates a 1D CImg object for the raw histogram
 			for (int i = 0; i < binNumber; ++i) {
 				histogramGraphCom(i) = histogramComFloat[i]; // Copies raw histogram values
-			}
+			}			
 			
-			// Sets histogram window size
-			CImgDisplay disp_raw(800, 600, "Raw Histogram");     
 			CImgDisplay disp_com(800, 600, "Cumulative Histogram");
 
 			// Display histograms using the custom display objects for greyscale images.
-			histogramGraph.display_graph(disp_raw, 3,1,"VALUES",0,255,"COUNT PER BIN",0,histogramGraph.max(),true);
 			histogramGraphCom.display_graph(disp_com, 3,1,"VALUES",0,255,"COUNT PER BIN",0,histogramGraphCom.max(),true);	
 
 
@@ -920,7 +920,7 @@ int main(int argc, char **argv) {
 
 				std::cout << "imageDimensions: " << imageDimensions << std::endl;
 				std::cout << "image_size: " << image_size << std::endl;
-				std::cout << "Expected byte size: " << imageDimensions * 3 * sizeof(unsigned short) << std::endl; //Debug messages, was having issues with correct buffer sizes.
+				std::cout << "Expected byte size: " << imageDimensions * 3 * sizeof(unsigned short) << std::endl; //Debug messages, was having issues with incorrect buffer sizes.
 
 				cl::Kernel proj(program, "back_projector_rgb_16bit");
 				proj.setArg(0, dev_image_input);

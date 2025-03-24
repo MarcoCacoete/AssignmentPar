@@ -6,27 +6,6 @@ kernel void hist_atom(global const uchar* inputImage, global int* histogramOutpu
 	atomic_inc(&histogramOutput[intensityValue]);  // Increments the corresponding bin each time by using the intensity value as the index number.
 }
 
-// // Based on regular atomic histogram we learned in workshops, but with my attempt to implement local memory use for efficiency.
-// kernel void hist_atom(global const uchar* inputImage, global int* histogramOutput, local int* hist, int imageDimensions){
-//     int id = get_global_id(0); // Global work item ID
-// 	int localSize = get_local_size(0); // Workgroup size
-//     int lid = get_local_id(0); // Local work item ID   
-
-//     if(lid < 256){ 	// Each work item initialises part of the local histogram to 0.
-//         hist[lid] = 0;
-//     }
-// 	barrier(CLK_LOCAL_MEM_FENCE);//wait for all local threads to finish copying from global to local memory
-
-//     if(id < imageDimensions){	 // This is a bounds check, it works with my kernel code global work size padding,  
-//         atomic_add(&hist[inputImage[id]],1); //  Atomic add, the 1 is the value being added, like incrementing logic.
-//     }
-// 	barrier(CLK_LOCAL_MEM_FENCE);//wait for all local threads to finish copying from global to local memory
-
-//     if(lid < 256){  // This updates the histogram in global memory.
-//         atomic_add(&histogramOutput[lid],hist[lid]); // Atomically update the global histogram
-//     }
-// }
-
 // Code adapted and modified from the workshop materials for tutorial 3, more specifically the reduce_add_4 kernel.
 kernel void hist_local(global const uchar* inputImage, global int* histogramOutput, local int* localHist, int binNumber,int imageSize){ 
 	int id = get_global_id(0);
@@ -150,19 +129,7 @@ kernel void hist_rgb(global const uchar* inputImage, global int* histR,global in
         atomic_add(&histB[lid], localHistB[lid]);
     }	
 }
-// // simpler first version of the hist rgb 16bit kernel, mostly same as atomic histogram but tripled for each channel.
-// kernel void hist_rgb_16bit(global const ushort* inputImage, global int* histR, global int* histG, global int* histB, int rgbImageSize) {
-//     int id = get_global_id(0);
-//     if (id < rgbImageSize) { //bounds check
-//         int rgbId = id * 3; // Places inde at correct offset per work item.
-//         int r = inputImage[rgbId]/64;     // Scaling, original bin sizes make it difficult to work with.
-//         int g = inputImage[rgbId + 1]/64; 
-//         int b = inputImage[rgbId + 2]/64; 
-//         atomic_inc(&histR[r]); // Atomic increments.
-//         atomic_inc(&histG[g]);
-//         atomic_inc(&histB[b]);
-//     }
-// }
+
 
 // Local memory version of the histogram kernel, it scales the bin number to 1024, 
 // I tried to run all 65k bins but could not output the histograms properly with CImg.
