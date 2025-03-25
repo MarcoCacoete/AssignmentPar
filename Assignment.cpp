@@ -34,9 +34,10 @@ CImg<unsigned char> picture_output(const std::string& image_filename){
 	
 
 	int pic_width = image_input.width();  // Assigns various image attirubtes to variables.
+	int pic_height = image_input.height();
 	int window_width = image_input.width();  
 	int window_height = image_input.height(); 
-	if (pic_width > 1080) {
+    if (pic_width > 5000 || pic_height>2000) {
 		window_width = image_input.width()/3;  // This conditional is here because I was having trouble fitting 
 		window_height = image_input.height()/3; // some images on my screen otherwise.
 	}	
@@ -59,10 +60,11 @@ void input16(const std::string& image_filename) { // Same as above pretty much. 
     CImg<unsigned short> img16(image_filename.c_str());
 
     int pic_width = img16.width();
+	int pic_height = img16.height();
     int window_width = img16.width();
     int window_height = img16.height();
 
-    if (pic_width > 1080) {
+    if (pic_width > 5000 || pic_height>2000) {
         window_width = img16.width() / 3;
         window_height = img16.height() / 3;
     }
@@ -111,11 +113,16 @@ int main(int argc, char **argv) {
 	try {
 		CImg<unsigned char> image_input; // Defines empty input image char vector.
 		CImg<unsigned short> img16(image_filename.c_str()); // Always creates 16bit short vector, to check if it's a 
-		unsigned short max = img16.max();					// 16 bit image. Couldnt find a better way.
+															// 16 bit image. Not as efficient as checking header but works for more image types.
+		int valCheck;
+		for (int i=0;i<img16.size();i++){
+			if(img16[i]>255)
+			valCheck = img16[i];			
+		}
 
 		bool is16Bit = false;// Boolean to flip if it is a 16bit image.
 	
-		if (max <= 255) {
+		if (valCheck <= 255) {
 			std::cout << "8-bit image detected." << std::endl;// Small block to show image type and dispaly it.
 			image_input = picture_output(image_filename); 
 	
@@ -201,10 +208,10 @@ int main(int argc, char **argv) {
 
 		//4.1 Copy images to device memory
 		
-		if(!is16Bit){ // Queues Write buffers with difference sizes depending on type of image 8 or 16bit.
-			cl::Event e_input_write;
-			queue.enqueueWriteBuffer(dev_image_input, CL_TRUE, 0, image_size, &image_input.data()[0],nullptr, &e_input_write);
-			event_log.push_back({"Input Image Write Buffer", e_input_write, 0,8});
+		if(!is16Bit){ // Queues Write buffers with different sizes depending on type of image 8 or 16bit.
+			cl::Event e_input_write; // Creates new event profile for timestamp subtraction so that execution time can be calculated.
+			queue.enqueueWriteBuffer(dev_image_input, CL_TRUE, 0, image_size, &image_input.data()[0],nullptr, &e_input_write); //Marks event with event name.
+			event_log.push_back({"Input Image Write Buffer", e_input_write, 0,8});// Appends event to event_log vector which holds label event spectrum and 8/16-bit info.
 
 			cl::Event e_output_write;
 			queue.enqueueWriteBuffer(dev_image_output, CL_TRUE, 0, image_size, &image_input.data()[0],nullptr, &e_output_write);
@@ -371,17 +378,17 @@ int main(int argc, char **argv) {
 							break;
 					}					
 					
-					// Sets histogram window size
-					CImgDisplay disp_raw(800, 600, histName);      //Defines window dimensions.
+					// Sets histogram window size and name.
+					CImgDisplay disp_raw(800, 600, histName);     
 
-					// Display graph, with argument val 3 for bar, no real way of changing font sizes.				
+					// Display graph, with argument value 3 for bar chart, no real way of changing font sizes.				
 					histogramGraphRgb.display_graph(disp_raw, 3,1,"VALUES",0,255,"COUNT PER BIN",0,histogramGraphRgb.max(),true);	
 				}
 			}else{
 				check=true;	
 			
 				std::cout<<"Colour image detected"<<endl; // Same repeated steps as above but for RGB 16bit.
-				binNumber = 1024; // Necessary due to the astronomical number of pixel values for 16bit.
+				binNumber = 1024; // Necessary due to the astronomical number of pixel values for 16bit, used after scaling down, then later scaled back up
 				buffer_Size = binNumber * sizeof(int); // Update buffer size to match 1024 bins
 
 				vector <int> histR (binNumber,0);
@@ -424,17 +431,14 @@ int main(int argc, char **argv) {
 
 				vector <vector<int>*> histRgb = {&histR,&histG,&histB};
 
-				for (int i = 0; i < histRgb.size(); i++) {
+				for (int i = 0; i < histRgb.size(); i++) { //Creates cimg object for histograms.
 					CImg<float> histogramGraphRgb(binNumber, 1, 1, 1, 0);
-				
-					int maxBinCount = *max_element((*histRgb[i]).begin(), (*histRgb[i]).end());
-				
 					for (int j = 0; j < binNumber; ++j) {
-						histogramGraphRgb(j) = static_cast<float>((*histRgb[i])[j]) / maxBinCount; // This displays the histogram normalised.
+						histogramGraphRgb(j) = static_cast<float>((*histRgb[i])[j]); 
 					}
-				
 					const char* histName;
-					switch (i) {
+
+					switch(i){// Picks relevant name.
 						case 0:
 							histName = "Red Histogram";
 							break;
@@ -444,11 +448,13 @@ int main(int argc, char **argv) {
 						case 2:
 							histName = "Blue Histogram";
 							break;
-					}
-				
-					CImgDisplay disp_raw(800, 600, histName);
-				
-					histogramGraphRgb.display_graph(disp_raw, 3, 1, "VALUES", 0, binNumber, "COUNT PER BIN", 0, 1, true);
+					}					
+					
+					// Sets histogram window size and name.
+					CImgDisplay disp_raw(800, 600, histName);     
+
+					// Display graph, with argument value 3 for bar chart, no real way of changing font sizes.				
+					histogramGraphRgb.display_graph(disp_raw, 3,1,"VALUES",0,255,"COUNT PER BIN",0,histogramGraphRgb.max(),true);	
 				}
 			}
 		}

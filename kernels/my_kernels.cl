@@ -106,6 +106,7 @@ kernel void back_projector(global const uchar* inputImage, global  uchar* output
 kernel void hist_rgb(global const uchar* inputImage, global int* histR,global int* histG,global int* histB, int rgbImageSize){
 	int id = get_global_id(0); // Gets work item id
 	int lid = get_local_id(0);
+	int n = rgbImageSize;		 // N to offset pixel colour channels
 	local int localHistR[256]; //Defines local histograms for 256 bins, 1 per colour channel.
 	local int localHistG[256];
 	local int localHistB[256];
@@ -118,10 +119,9 @@ kernel void hist_rgb(global const uchar* inputImage, global int* histR,global in
     }
 	barrier(CLK_LOCAL_MEM_FENCE); // syncs the step
 	if (id < rgbImageSize) {
-		int rgbId = id*3; // Offsets the workitem id by 3 to skip the GB indexes in RGB.
-		int intensityValueR = inputImage[rgbId];  
-		int intensityValueG = inputImage[rgbId+1];  // Assigns values to RGB using offset.
-		int intensityValueB = inputImage[rgbId+2];  
+		int intensityValueR = inputImage[id];  
+		int intensityValueG = inputImage[n+id];  // Assigns values to RGB using offset.
+		int intensityValueB = inputImage[2*n+id];  
 		atomic_inc(&localHistR[intensityValueR]);  // Increments atomically local hist.
 		atomic_inc(&localHistG[intensityValueG]); 
 		atomic_inc(&localHistB[intensityValueB]); 
@@ -146,8 +146,10 @@ kernel void hist_rgb_16bit(
     local int localHistB[1024];
 
     int localId = get_local_id(0);
-    int globalId = get_global_id(0);
+    int id = get_global_id(0);
     int localSize = get_local_size(0);
+	int n = rgbImageSize; 		 // N to offset pixel colour channels
+
 
     for (int i = localId; i < binSize; i += localSize) { // I was having issues with populating all bins so initialised all bins using a stride.
         localHistR[i] = 0;
@@ -156,11 +158,10 @@ kernel void hist_rgb_16bit(
     }
 	barrier(CLK_LOCAL_MEM_FENCE);//wait for all local threads to finish copying from global to local memory
 
-    if (globalId < rgbImageSize) {  
-        int rgbId = globalId * 3;  // Assigns ID per group of 3 RGB values. Allows skipping to correct index.
-        int r = inputImage[rgbId] / 64;  // Scaling from original values.
-        int g = inputImage[rgbId + 1] / 64; // Assings to RGB using the addition of the offset.
-        int b = inputImage[rgbId + 2] / 64;
+    if (id < rgbImageSize) {  // Stride n to offset for colour channels
+        int r = inputImage[id] / 64;  // Scaling from original values.
+        int g = inputImage[id+n] / 64; // Assings to RGB using the addition of the offset.
+        int b = inputImage[2*n+id] / 64;
 
         atomic_inc(&localHistR[r]);// Atomic incrementation as before.
         atomic_inc(&localHistG[g]);
@@ -183,7 +184,7 @@ kernel void hist_greyscale_16bit(global const ushort* inputImage, global int* ou
     local int localHist[1024];    
 
     int localId = get_local_id(0);
-    int globalId = get_global_id(0);
+    int id = get_global_id(0);
     int localSize = get_local_size(0);
 
     for (int i = localId; i < binSize; i += localSize) { // I was having issues with populating all bins so initialised all bins using a stride.
@@ -191,8 +192,8 @@ kernel void hist_greyscale_16bit(global const ushort* inputImage, global int* ou
     }
 	barrier(CLK_LOCAL_MEM_FENCE);//wait for all local threads to finish copying from global to local memory
 
-    if (globalId < imageSize) {  
-        int intensity= inputImage[globalId] / 64;  // Scaling from original values.
+    if (id < imageSize) {  
+        int intensity= inputImage[id] / 64;  // Scaling from original values.
         atomic_inc(&localHist[intensity]);// Atomic incrementation as before.        
     }
 	barrier(CLK_LOCAL_MEM_FENCE);//wait for all local threads to finish copying from global to local memory
@@ -202,12 +203,14 @@ kernel void hist_greyscale_16bit(global const ushort* inputImage, global int* ou
 }
 
 // Back projection kernel blind attempt at making from scratch.
-kernel void back_projectorRgb(global const uchar* inputImage, global  uchar* outputImage, global const float* LUTr,global const float* LUTg,global const float* LUTb,int binNumber){
+kernel void back_projectorRgb(global const uchar* inputImage, global  uchar* outputImage, global const float* LUTr,global const float* LUTg,global const float* LUTb,int rgbImageSize){
 	int id = get_global_id(0);
-	int rgbId = id*3;
-	outputImage[rgbId] = LUTr[inputImage[rgbId]]*binNumber-1; // Similar to the other one changed to dynamic bin number. Also 3 channels.
-	outputImage[rgbId+1] = LUTg[inputImage[rgbId+1]]*binNumber-1;
-	outputImage[rgbId+2] = LUTb[inputImage[rgbId+2]]*binNumber-1;	
+	if (id < rgbImageSize) {
+	int n = rgbImageSize;
+	outputImage[id] = LUTr[inputImage[id]]*rgbImageSize-1; // Similar to the other one changed to dynamic bin number. Also 3 channels.
+	outputImage[n+id] = LUTg[inputImage[n+id]]*rgbImageSize-1;
+	outputImage[2*n+id] = LUTb[inputImage[2*n+id]]*rgbImageSize-1;	
+	}
 } 
 
 
@@ -215,13 +218,13 @@ kernel void back_projector_rgb_16bit(global const ushort* inputImage,global usho
 {
 	    int id = get_global_id(0);    
     if (id >= rgbImageSize) return;
-    int rgbId = id * 3;
-    int indexR = (int)(inputImage[rgbId]*scale); // Main difference is the need to scale the values back to create 16bit image.
-    int indexG = (int)(inputImage[rgbId+1]*scale);
-    int indexB = (int)(inputImage[rgbId+2]*scale);
-    outputImage[rgbId] = (ushort)(lutR[indexR]*65535.0f);
-    outputImage[rgbId + 1] = (ushort)(lutG[indexG]*65535.0f);
-    outputImage[rgbId + 2] = (ushort)(lutB[indexB]*65535.0f);
+    int n = rgbImageSize;
+    int indexR = (int)(inputImage[id]*scale); // Main difference is the need to scale the values back to create 16bit image.
+    int indexG = (int)(inputImage[n+id]*scale);
+    int indexB = (int)(inputImage[2*n+id]*scale);
+    outputImage[id] = (ushort)(lutR[indexR]*65535.0f);
+    outputImage[n+id] = (ushort)(lutG[indexG]*65535.0f);
+    outputImage[2*n+id] = (ushort)(lutB[indexB]*65535.0f);
 }
 kernel void back_projector_grayscale_16bit(global const ushort* inputImage,global ushort* outputImage,global const float* LUT,int ImageSize,float scale) 
 {
