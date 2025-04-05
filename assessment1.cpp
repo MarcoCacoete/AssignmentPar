@@ -812,10 +812,7 @@ int main(int argc, char **argv) {
 
 			//This little block is in charge of outputting metrics for time to execute, for memory and kernel executions. 
 			queue.finish();// Make sure all operations are finished.
-			metricsMaker(event_log,0,8);		
-
-
-			
+			metricsMaker(event_log,0,8);				
 
 
 		}else if(spectrum==3){// Same as above but for rgb images.

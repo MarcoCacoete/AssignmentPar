@@ -70,3 +70,52 @@ Down-Sweep: Distributes sums for exclusive scan.
 
 Histogram Use: Cumulative sums map pixel intensities to probabilities.
 
+Dear Parallel Programming students,
+
+
+
+Here is some important information about the two assessments for the module:
+
+
+
+ASSESSMENT-1 
+
+
+
+Your executive summary must be submitted as a pdf file and as the main TurnItIn submission. Please note that the brief specifies a 4 page limit on the executive summary.  This refers to the complete submission document so includes any appendices, references, or other content. 
+
+
+
+Your source code must be submitted as a zip file as Supplemental Information in TurnItIn. It must be named submission.zip and will be assessed by extracting it to a folder on a lab machine using the following commands:
+
+
+
+$ sudo apt install ocl-icd-opencl-dev ocl-icd-libopencl1 pocl-opencl-icd clinfo
+
+$ unzip submission.zip
+
+$ cd submission
+
+$ g++ assessment1.cpp -o assessment1 -lOpenCL -lX11 -lpthread
+
+$ ./assessment1 -p 0 #run on GPU
+
+$ ./assessment1 -p 1 #run on CPU
+
+
+
+(Advanced students: if you require other libraries to run then your may provide an additional Makefile which creates assessment1 given the command 
+
+$ make
+
+in place of the g++ command above.
+
+)
+
+
+
+Code which does not execute from these commands will receive ZERO MARKS.  So it is important to name your zip file and cpp file exactly as above, and to test your code on the lab machines using these exact commands.
+
+
+
+If you require individual support in your work on Assessment1 then you should ask the demonstrators during the scheduled workshops sessions, who are available to help you. 
