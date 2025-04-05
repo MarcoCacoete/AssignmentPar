@@ -52,6 +52,9 @@
  #
 */
 
+// This code is reused from the materials that were provided for the workshop tasks for Parallel Programming, 2425, found here - https://blackboard.lincoln.ac.uk/ultra/courses/_200377_1/outline/file/_9918362_1, and remains unchanged 
+
+
 // Set version number of the library.
 #ifndef cimg_version
 #define cimg_version 250

@@ -15,7 +15,7 @@ kernel void hist_local(global const uchar* inputImage, global int* histogramOutp
 	int N = get_local_size(0);
 
 	if(id>=imageSize) return; // This is a bounds check, it works with my kernel code global work size padding, 
-							  // only found out that workgroup size was working previously because gworksize was divisible by 256 by chance.
+							  // only found out that workgroup size was working previously because global worksize was divisible by 256 by chance.
 
 	//cache all N values from global memory to local memory
 	for(int i = lid; i<binNumber; i+=N){
@@ -48,18 +48,17 @@ kernel void hist_normal(global float* cumHist,float maxBin){
 kernel void cum_hist(global int* A, global int* B) {
     int id = get_global_id(0);
     int N = get_global_size(0);
-    B[id] = A[id];
-
+    B[id] = A[id]; //Copies histogram to B 
     barrier(CLK_GLOBAL_MEM_FENCE); //sync the step
 
-    for (int stride = 1; stride < N; stride *= 2) { 
-        int memHolder = B[id];
+    for (int stride = 1; stride < N; stride *= 2) { // Peforms scan using stride
+        int memHolder = B[id];						// Temp memory storage for value
         barrier(CLK_GLOBAL_MEM_FENCE); //sync the step
-        if (id >= stride)
+        if (id >= stride)				// Bounds check and checks neighbours value
             memHolder = B[id - stride];            
         barrier(CLK_GLOBAL_MEM_FENCE); //sync the step    
         if (id >= stride)
-            B[id] += memHolder;
+            B[id] += memHolder;        // Adds it up
         barrier(CLK_GLOBAL_MEM_FENCE); //sync the step
     }
 }
@@ -71,9 +70,9 @@ kernel void scan_bl(global int* A) {
 	int N = get_global_size(0);
 	int t;
 	//up-sweep
-	for (int stride = 1; stride < N; stride *= 2) {
+	for (int stride = 1; stride < N; stride *= 2) {// Stride to "select" threads 
 		if (((id + 1) % (stride*2)) == 0)
-			A[id] += A[id - stride];
+			A[id] += A[id - stride]; // Adds the values 
 
 		barrier(CLK_GLOBAL_MEM_FENCE); //sync the step
 	}
@@ -82,7 +81,7 @@ kernel void scan_bl(global int* A) {
 		A[N-1] = 0;//exclusive scan
 
 	barrier(CLK_GLOBAL_MEM_FENCE); //sync the step
-	for (int stride = N/2; stride > 0; stride /= 2) {
+	for (int stride = N/2; stride > 0; stride /= 2) { // Downsweep replaces the value with the cumulative sum
 		if (((id + 1) % (stride*2)) == 0) {
 			t = A[id];
 			A[id] += A[id - stride]; //reduce 

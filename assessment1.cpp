@@ -99,6 +99,7 @@ int main(int argc, char **argv) {
 	string image_filename = imageName ;
 	// string image_filename = "test_large.pgm";
 
+
 	for (int i = 1; i < argc; i++) { // More code from workshops, accepts options selected by user, assigns flags to various variables or calls print help function.
 		if ((strcmp(argv[i], "-p") == 0) && (i < (argc - 1))) { platform_id = atoi(argv[++i]); }
 		else if ((strcmp(argv[i], "-d") == 0) && (i < (argc - 1))) { device_id = atoi(argv[++i]); }
@@ -131,7 +132,10 @@ int main(int argc, char **argv) {
 			input16(image_filename); 
 			is16Bit = true; //Flips boolean to true.
 		}
-		
+		#define RED     "\033[31m" // Red text so that the user can spot this instruction to proceed.
+		#define RESET   "\033[0m"
+		std::cout<<"Please close all images and histograms as they pop open to proceed."<<endl;
+
 		//Part 3 - host operations 
 		//3.1 Select computing devices. More code provided from workshops.
 		cl::Context context = GetContext(platform_id, device_id);// Defines platform and device to be used.
