@@ -206,9 +206,9 @@ kernel void back_projectorRgb(global const uchar* inputImage, global  uchar* out
 	int id = get_global_id(0);
 	if (id < rgbImageSize) {
 	int n = rgbImageSize;
-	outputImage[id] = LUTr[inputImage[id]]*rgbImageSize-1; // Similar to the other one changed to dynamic bin number. Also 3 channels.
-	outputImage[n+id] = LUTg[inputImage[n+id]]*rgbImageSize-1;
-	outputImage[2*n+id] = LUTb[inputImage[2*n+id]]*rgbImageSize-1;	
+	outputImage[id] = LUTr[inputImage[id]]*255; // Similar to the other but for 3 channels.
+	outputImage[n+id] = LUTg[inputImage[n+id]]*255;
+	outputImage[2*n+id] = LUTb[inputImage[2*n+id]]*255;	
 	}
 } 
 

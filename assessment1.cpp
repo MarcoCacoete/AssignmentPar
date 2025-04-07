@@ -883,7 +883,7 @@ int main(int argc, char **argv) {
 				proj.setArg(2, *rgbBufferscumNorm[0]);
 				proj.setArg(3, *rgbBufferscumNorm[1]);
 				proj.setArg(4, *rgbBufferscumNorm[2]);
-				proj.setArg(5,binNumber);	
+				proj.setArg(5,imageDimensions);	
 				cl::Event e_back_proj_kernel;	
 				queue.enqueueNDRangeKernel(proj, cl::NullRange, cl::NDRange(imageDimensions), cl::NullRange,nullptr,&e_back_proj_kernel);
 				event_log.push_back({"Image back projection kernel", e_back_proj_kernel, 1,8});
