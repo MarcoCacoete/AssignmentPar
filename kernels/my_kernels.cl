@@ -44,14 +44,15 @@ kernel void hist_normal(global float* cumHist,float maxBin){
 	cumHist[id] = (float)cumHist[id] / maxBin;		
 }
 
-//Hillis-Steele basic inclusive scan adapted from workshop materials for tutorial 3
+//Hillis-Steele basic inclusive scan adapted from workshop materials for tutorial 3, made iterative changes necessary to get it to work for my purposes.
+// It was difficult to debug without the debugger, due to my limited experience with opencl, tried different things until it worked.
 kernel void cum_hist(global int* A, global int* B) {
     int id = get_global_id(0);
     int N = get_global_size(0);
     B[id] = A[id]; //Copies histogram to B 
     barrier(CLK_GLOBAL_MEM_FENCE); //sync the step
 
-    for (int stride = 1; stride < N; stride *= 2) { // Peforms scan using stride
+    for (int stride = 1; stride < N; stride *= 2) { // Peforms scan using stride, is inclusive contrary to the Blelloch method
         int memHolder = B[id];						// Temp memory storage for value
         barrier(CLK_GLOBAL_MEM_FENCE); //sync the step
         if (id >= stride)				// Bounds check and checks neighbours value
@@ -64,7 +65,6 @@ kernel void cum_hist(global int* A, global int* B) {
 }
 
 //Blelloch basic exclusive scan cumulative histogram based on algorithm found on tutorial 3 workshop materials
-
 kernel void scan_bl(global int* A) {
 	int id = get_global_id(0);
 	int N = get_global_size(0);
@@ -92,7 +92,7 @@ kernel void scan_bl(global int* A) {
 	}
 }
 
-// Back projection kernel blind attempt at making from scratch.
+// Back projection kernel, used this website for information - https://www.songho.ca/dsp/histogram/histogram.html
 kernel void back_projector(global const uchar* inputImage, global  uchar* outputImage, global const float* LUT, int imageSize){
 	int id = get_global_id(0);
 	if (id < imageSize) {  
@@ -101,7 +101,7 @@ kernel void back_projector(global const uchar* inputImage, global  uchar* output
 	}
 } 
 
-// Attempt at an rgb histogram maker kernel.
+// Attempt at an rgb histogram maker kernel, iteration of local histogram learned in workshops, using offsets for different colour channels.
 kernel void hist_rgb(global const uchar* inputImage, global int* histR,global int* histG,global int* histB, int rgbImageSize){
 	int id = get_global_id(0); // Gets work item id
 	int lid = get_local_id(0);
@@ -134,7 +134,7 @@ kernel void hist_rgb(global const uchar* inputImage, global int* histR,global in
 }
 
 
-// Local memory version of the histogram kernel, it scales the bin number to 1024, 
+// This is again an iteration of the same kernel used previously but adapted as needed for the different types of image.
 // I tried to run all 65k bins but could not output the histograms properly with CImg.
 kernel void hist_rgb_16bit(
     global const ushort* inputImage, global int* histR, global int* histG, global int* histB,int rgbImageSize, int binSize) {
@@ -175,7 +175,7 @@ kernel void hist_rgb_16bit(
     }
 }
 
-// Local memory version of the histogram kernel, it scales the bin number to 1024, 
+// Building upon the previous examples, it scales the bin number to 1024, 
 // I tried to run all 65k bins but could not output the histograms properly with CImg.
 kernel void hist_greyscale_16bit(global const ushort* inputImage, global int* outputHist,int imageSize, int binSize) {
 
@@ -201,7 +201,7 @@ kernel void hist_greyscale_16bit(global const ushort* inputImage, global int* ou
     }
 }
 
-// Back projection kernel blind attempt at making from scratch.
+// Back projection kernel attempt at making this based on the previous attempt but with the offsets for the channels.
 kernel void back_projectorRgb(global const uchar* inputImage, global  uchar* outputImage, global const float* LUTr,global const float* LUTg,global const float* LUTb,int rgbImageSize){
 	int id = get_global_id(0);
 	if (id < rgbImageSize) {

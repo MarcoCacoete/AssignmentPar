@@ -99,6 +99,7 @@ int main(int argc, char **argv) {
 	string image_filename = imageName ;
 	// string image_filename = "test_large.pgm";
 
+
 	for (int i = 1; i < argc; i++) { // More code from workshops, accepts options selected by user, assigns flags to various variables or calls print help function.
 		if ((strcmp(argv[i], "-p") == 0) && (i < (argc - 1))) { platform_id = atoi(argv[++i]); }
 		else if ((strcmp(argv[i], "-d") == 0) && (i < (argc - 1))) { device_id = atoi(argv[++i]); }
@@ -114,7 +115,7 @@ int main(int argc, char **argv) {
 		CImg<unsigned char> image_input; // Defines empty input image char vector.
 		CImg<unsigned short> img16(image_filename.c_str()); // Always creates 16bit short vector, to check if it's a 
 															// 16 bit image. Not as efficient as checking header but works for more image types.
-		int valCheck;
+		int valCheck=0;
 		for (int i=0;i<img16.size();i++){
 			if(img16[i]>255)
 			valCheck = img16[i];			
@@ -131,7 +132,10 @@ int main(int argc, char **argv) {
 			input16(image_filename); 
 			is16Bit = true; //Flips boolean to true.
 		}
-		
+		#define RED     "\033[31m" // Red text so that the user can spot this instruction to proceed.
+		#define RESET   "\033[0m"
+		std::cout<<"Please close all images and histograms as they pop open to proceed."<<endl;
+
 		//Part 3 - host operations 
 		//3.1 Select computing devices. More code provided from workshops.
 		cl::Context context = GetContext(platform_id, device_id);// Defines platform and device to be used.
@@ -812,10 +816,7 @@ int main(int argc, char **argv) {
 
 			//This little block is in charge of outputting metrics for time to execute, for memory and kernel executions. 
 			queue.finish();// Make sure all operations are finished.
-			metricsMaker(event_log,0,8);		
-
-
-			
+			metricsMaker(event_log,0,8);				
 
 
 		}else if(spectrum==3){// Same as above but for rgb images.

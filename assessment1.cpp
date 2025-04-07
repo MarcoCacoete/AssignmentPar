@@ -166,7 +166,8 @@ int main(int argc, char **argv) {
 
 		//Part 4 - device operations		
 		// This is to keep timing of events for metrics in milliseconds. First element for label, then the event object then image type being processed.
-		vector<tuple<string, cl::Event, int, int>> event_log; //  0 = 8-bit Greyscale, 1 = 8-bit RGB, 2 = 16-bit Greyscale, 3 = 16-bit RGB finally 8 or 16 bit.
+		vector<tuple<string, cl::Event, int, int>> event_log; //The first int is coded as either 0 or 1 for spectrum, Greyscale or RGB
+															  //second int is coded as 8 or 16 for 8 or 16 bit
 
 
 		int width = is16Bit? img16.width() : image_input.width(); // Creates various necessary variables holding image metadata.
@@ -183,14 +184,14 @@ int main(int argc, char **argv) {
 			binNumber = 65536;
 		}
 		
-		const size_t localWorkSize = 256; // Local worksize not real information on how to pick a good size.
+		const size_t localWorkSize = 256; // Local worksize couldn't find anything concrete on how to pick a good size, other than smaller than device maximum allowed.
 
 		std::cout<<"Width:"<<width<<endl; //Some prints of image metadata.
 		std::cout<<"Height:"<<height<<endl;
 		std::cout<<"Pixel count: "<<width*height<<endl;
 		std::cout << "Image size (bytes): " << image_size << endl;
 		// Defines globalworksize with padding for cases where it might not be divisible well, depending on image. Used with bounds check.
-		size_t globalWorkSize = ((imageDimensions + localWorkSize - 1) / localWorkSize) * localWorkSize; // Adjusted for pixel count
+		size_t globalWorkSize = ((imageDimensions + localWorkSize - 1) / localWorkSize) * localWorkSize; 
 		size_t buffer_Size = binNumber * sizeof(int); // Sizing buffers. 
 		size_t buffer_Size_float = binNumber * sizeof(float);
 
@@ -317,7 +318,7 @@ int main(int argc, char **argv) {
 				// Sets histogram window size
 				CImgDisplay disp_raw(800, 600, "Raw Histogram");     
 
-				// Display histograms using the custom display objects for greyscale images.
+				// Displays the histograms for greyscale images.
 				histogramGraph.display_graph(disp_raw, 3, 1, "VALUES", 0, binNumber, "COUNT PER BIN", 0, histogramGraph.max(), false);
 			}else if(!is16Bit){ // The 16bit and 8bitrgb pictures have their oown different kernels
 
@@ -388,7 +389,7 @@ int main(int argc, char **argv) {
 					// Display graph, with argument value 3 for bar chart, no real way of changing font sizes.				
 					histogramGraphRgb.display_graph(disp_raw, 3,1,"VALUES",0,255,"COUNT PER BIN",0,histogramGraphRgb.max(),true);	
 				}
-			}else{
+			}else{ // Once again similar as above, if I left something uncommented it's due to being exactly the same as before pretty much.
 				check=true;	
 			
 				std::cout<<"Colour image detected"<<endl; // Same repeated steps as above but for RGB 16bit.
@@ -433,7 +434,7 @@ int main(int argc, char **argv) {
 				queue.enqueueReadBuffer(dev_histB, CL_TRUE, 0, buffer_Size, histB.data(),nullptr, &e_histB_read_buffer);
 				event_log.push_back({"Histogram read buffer Blue", e_histB_read_buffer, 1,16});		
 
-				vector <vector<int>*> histRgb = {&histR,&histG,&histB};
+				vector <vector<int>*> histRgb = {&histR,&histG,&histB};  // This is a vector of pointers to iterate and create different objects without duplicating data.
 
 				for (int i = 0; i < histRgb.size(); i++) { //Creates cimg object for histograms.
 					CImg<float> histogramGraphRgb(binNumber, 1, 1, 1, 0);
@@ -466,7 +467,8 @@ int main(int argc, char **argv) {
 	
 		//4.3 Copy the result from device to host
 		
-		// Reads for greyscale histogram buffer. Some of the lines before while loop are here so they are visible in following scopes.
+		// Reads for greyscale histogram buffer. Some of the lines before while loop are here so they are visible in following scopes. 
+		// Once again struggled with this issue troughout project, had to start making progress so this was my solution, due to having to split my time between assignments.
 		cl::Event e_devHist_read_buffer;
 		queue.enqueueReadBuffer(dev_intensityHistogram, CL_TRUE, 0, buffer_Size, &histogram.data()[0],nullptr,&e_devHist_read_buffer);
 		event_log.push_back({"Histogram read buffer", e_devHist_read_buffer, 0,8});
@@ -550,6 +552,7 @@ int main(int argc, char **argv) {
 					histogramGraphcumUnnorm(i) = histogramcum[i];
 				}
 				CImgDisplay disp_cum_unnorm(800, 600, "Unnormalised Cumulative Histogram (8-bit Greyscale)"); // Labels and sets window size. And bar type graph value 3 as second argument.
+				// Some of the histograms dont display with proper scaling, I tried to fix them but without success, I have no idea why, but it seems CImg works in mysterious ways sometimes.
 				histogramGraphcumUnnorm.display_graph(disp_cum_unnorm, 3, 1, "VALUES", 0, 255, "COUNT PER BIN", 0, histogramGraphcumUnnorm.max(), true);
 
 			}	
@@ -596,7 +599,7 @@ int main(int argc, char **argv) {
 					CImgDisplay disp_cum_unnorm(800, 600, histNames[i]);
 					histogramGraphcumUnnorm.display_graph(disp_cum_unnorm, 3, 1, "VALUES", 0, 255, "COUNT PER BIN", 0, histogramGraphcumUnnorm.max(), true);
 				}
-			}else if(is16Bit &&spectrum ==1 ){		
+			}else if(is16Bit &&spectrum ==1 ){		// This is exactly the same as other blocks above, just repeated kernel calls and event logging 
 
 				size_t buffer_Size = sizeof(int) * binNumber; 
 				if (kernelType=="hillis"){
@@ -643,7 +646,7 @@ int main(int argc, char **argv) {
 				// Converts intermediate results to floats for normalisation
 				vector<float> histogramcumFloat(binNumber, 0.0f); // New float vector
 				for (int i = 0; i < binNumber; ++i) {
-					histogramcumFloat[i] = static_cast<float>(histogramcum[i]); // Convert int to float
+					histogramcumFloat[i] = static_cast<float>(histogramcum[i]); // Converts int to float
 				}
 
 				buffer_Size_float = binNumber * sizeof(float); 		
@@ -663,15 +666,15 @@ int main(int argc, char **argv) {
 				queue.enqueueReadBuffer(dev_histNormal, CL_TRUE, 0, buffer_Size_float, &histogramcumFloat.data()[0],nullptr,&e_hist_norm_read_buffer);
 				event_log.push_back({"Normalised histogram read buffer", e_hist_norm_read_buffer, 0,16});				
 
-				CImg<float> histogramGraphcum(binNumber, 1, 1, 1, 0); // Create a 1D CImg object for the raw histogram
+				CImg<float> histogramGraphcum(binNumber, 1, 1, 1, 0); // Creates a 1D CImg object for the raw histogram
 				for (int  i= 0;  i< binNumber; ++i) {
-					histogramGraphcum(i) = histogramcumFloat[i]; // Copy raw histogram values
+					histogramGraphcum(i) = histogramcumFloat[i]; // Copies raw histogram values
 				}
 
 				// // Sets histogram window size		   
 				CImgDisplay disp_cum(800, 600, "Cumulative Histogram");
 
-				// // Display histograms using the custom display objects
+				// // Displays histograms 
 				histogramGraphcum.display_graph(disp_cum, 3,1,"VALUES",0,255,"COUNT PER BIN",0,histogramGraphcum.max());	
 
 				binNumber = 1024; 
@@ -689,7 +692,7 @@ int main(int argc, char **argv) {
 				proj.setArg(3, imageDimensions);
 				proj.setArg(4, scale);
 
-				vector<unsigned short> output_buffer(imageDimensions); // 272640 elements, 2 bytes each
+				vector<unsigned short> output_buffer(imageDimensions); // 272640 elements, 2 bytes each ignore this,  used for debugging
 				cl::Event e_back_proj;	
 				queue.enqueueNDRangeKernel(proj, cl::NullRange, cl::NDRange(globalWorkSize), cl::NDRange(localWorkSize),nullptr,&e_back_proj);
 				event_log.push_back({"Image back projection kernel", e_back_proj, 0,16});			
@@ -698,7 +701,7 @@ int main(int argc, char **argv) {
 				event_log.push_back({"Output image read buffer", e_out_img_read_buffer, 0,16});		
 				
 				//This little block is in charge of outputting metrics for time to execute, for memory and kernel executions. 
-				queue.finish();// Make sure all operations are finished.
+				queue.finish();// Makes sure all operations are finished.
 				metricsMaker(event_log,0,16);		
 
 
@@ -765,7 +768,7 @@ int main(int argc, char **argv) {
 			// Converts intermediate results to floats for normalisation
 			vector<float> histogramcumFloat(binNumber, 0.0f); // New float vector
 			for (int i = 0; i < binNumber; ++i) {
-				histogramcumFloat[i] = static_cast<float>(histogramcum[i]); // Convert int to float
+				histogramcumFloat[i] = static_cast<float>(histogramcum[i]); // Converts int to float
 			}
 			cl::Event e_write_buffer_hist_norm;
 			queue.enqueueWriteBuffer(dev_histNormal, CL_TRUE, 0, buffer_Size_float, &histogramcumFloat.data()[0],nullptr,&e_write_buffer_hist_norm);
@@ -805,18 +808,17 @@ int main(int argc, char **argv) {
 			
 			CImgDisplay disp_cum(800, 600, "Cumulative Histogram");
 
-			// Display histograms using the custom display objects for greyscale images.
+			// Displays histograms 
 			histogramGraphcum.display_graph(disp_cum, 3,1,"VALUES",0,255,"COUNT PER BIN",0,histogramGraphcum.max(),true);	
 
 
-			CImg<unsigned char> output_image(output_buffer.data(), width, height, depth, spectrum);
+			CImg<unsigned char> output_image(output_buffer.data(), width, height, depth, spectrum); // Saves image to file.
 			string output_name = "output_image.pgm";
 			output_image.save("output_image.pgm");
 			picture_output(output_name);
 
-			//This little block is in charge of outputting metrics for time to execute, for memory and kernel executions. 
 			queue.finish();// Make sure all operations are finished.
-			metricsMaker(event_log,0,8);				
+			metricsMaker(event_log,0,8);	//Calls my custom function to calculate times from profiling, and outputting them.			
 
 
 		}else if(spectrum==3){// Same as above but for rgb images.
@@ -861,16 +863,16 @@ int main(int argc, char **argv) {
 				queue.enqueueReadBuffer(*rgbBufferscumNorm[i], CL_TRUE, 0, buffer_Size_float, &(*histogramcumRgbFloat[i]).data()[0],nullptr,&e_cum_read_buffer);	
 				event_log.push_back({"Normalised cumulative histogram read buffer", e_cum_read_buffer, 1,8});
 
-				CImg<float> histogramGraphcum(binNumber, 1, 1, 1, 0); // Create a 1D CImg object for the raw histogram
+				CImg<float> histogramGraphcum(binNumber, 1, 1, 1, 0); // Creates a 1D CImg object for the raw histogram
 				for (int j = 0; j < binNumber; ++j) {
-					histogramGraphcum(j) = (*histogramcumRgbFloat[i])[j]; // Copy raw histogram values
-					// std::cout<< (*histogramcumRgbFloat[i])[j]<<endl;
+					histogramGraphcum(j) = (*histogramcumRgbFloat[i])[j]; // Copies raw histogram values
+					// std::cout<< (*histogramcumRgbFloat[i])[j]<<endl; debug stuff
 				}
 				
-				// // Sets histogram window size
+				// Sets histogram window size
 				CImgDisplay disp_cum(800, 600, "Cumulative Histogram");
 
-				// // Display histograms using the custom display objects
+				// Displays histograms 
 				histogramGraphcum.display_graph(disp_cum, 3,1,"VALUES",0,255,"COUNT PER BIN",0,histogramGraphcum.max(),true);					
 
 			}
@@ -894,10 +896,9 @@ int main(int argc, char **argv) {
 				string output_name = "output_image.ppm";
 				output_image.save("output_image.ppm");
 
-				picture_output(output_name);
+				picture_output(output_name);// Calls function to output image.
 
-				//This little block is in charge of outputting metrics for time to execute, for memory and kernel executions. 
-				queue.finish();// Make sure all operations are finished.	
+				queue.finish();// Makes sure all operations are finished.	
 				metricsMaker(event_log,1,8);		
 
 
@@ -943,17 +944,10 @@ int main(int argc, char **argv) {
 				input16(output_name);
 
 
-				//This little block is in charge of outputting metrics for time to execute, for memory and kernel executions. 
-				queue.finish();// Make sure all operations are finished.
-				metricsMaker(event_log,1,16);		
-
-
-
+				queue.finish();// Makes sure all operations are finished.
+				metricsMaker(event_log,1,16);// Uses the same function as before
 			}
-			
-
 		}	
-
 	}
 	catch (const cl::Error& err) {
 		std::cerr << "ERROR: " << err.what() << ", " << getErrorString(err.err()) << std::endl;
