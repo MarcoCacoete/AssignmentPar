@@ -93,11 +93,15 @@ int main(int argc, char **argv) {
 	//Part 1 - handle command line options such as device selection, verbosity, etc.
 	int platform_id = 0;
 	int device_id = 0;
-	std::cout<<"Enter image name."<<endl; //User input to enter prefered image.	
-	string imageName;	
-	cin>>imageName;
-	string image_filename = imageName ;
-	// string image_filename = "test_large.pgm";
+
+	string image_filename = "input.pgm";
+	// Interactive input with default fallback
+    std::cout << "Enter image name (press Enter for default: " << image_filename << "): ";
+    string user_input;
+    getline(cin, user_input);  // Use getline to handle empty input
+    if (!user_input.empty()) {
+        image_filename = user_input;
+    }
 
 
 	for (int i = 1; i < argc; i++) { // More code from workshops, accepts options selected by user, assigns flags to various variables or calls print help function.
@@ -134,7 +138,7 @@ int main(int argc, char **argv) {
 		}
 		#define RED     "\033[31m" // Red text so that the user can spot this instruction to proceed.
 		#define RESET   "\033[0m"
-		std::cout<<"Please close all images and histograms as they pop open to proceed."<<endl;
+		std::cout << RED << "Please close all images and histograms as they pop open to proceed." << RESET << endl;
 
 		//Part 3 - host operations 
 		//3.1 Select computing devices. More code provided from workshops.
@@ -247,7 +251,7 @@ int main(int argc, char **argv) {
 		while(!check){ // While not check used to make sure user inputs correct options.
 
 			if(spectrum==1 && !is16Bit){ // Spectrum 1 matches greyscale.
-				std::cout<<"What histogram kernel would you like to use. Local or Atom?"<<endl; // Input choice for kernel for histogram.
+				std::cout<<"What histogram kernel would you like to use. Atom or Local?"<<endl; // Input choice for kernel for histogram.
 				string kernelType;
 				cin>>kernelType;
 				// To lower to prevent capitals in user input.
@@ -503,7 +507,7 @@ int main(int argc, char **argv) {
 		check = false;
 
 		while(!check){ // Same as above but for cumulative histogram kernels.
-			std::cout<<"What cumulative histogram kernel would you like to use. Hillis or Blelloch?"<<endl;
+			std::cout<<"What cumulative histogram kernel would you like to use. Blelloch or Hillis?"<<endl;
 			string kernelType;
 			cin>>kernelType;
 			std::transform(kernelType.begin(),kernelType.end(),kernelType.begin(),::tolower);
